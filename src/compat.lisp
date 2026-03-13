@@ -245,13 +245,13 @@
     "Get termios structure for file descriptor."
     (let ((termios (make-array +termios-size+ :element-type '(unsigned-byte 8) :initial-element 0)))
       (ffi:c-inline (fd termios) (:int :object) :void
-        "tcgetattr(#0, (struct termios*)#1->vector.self.b8)")
+        "tcgetattr(#0, (struct termios*)#1->vector.self.b8);")
       termios))
   
   (defun %set-termios (fd termios)
     "Set termios structure for file descriptor."
     (ffi:c-inline (fd termios) (:int :object) :void
-      "tcsetattr(#0, TCSAFLUSH, (struct termios*)#1->vector.self.b8)"))
+      "tcsetattr(#0, TCSAFLUSH, (struct termios*)#1->vector.self.b8);"))
   
   (defun %get-termios-flag (termios offset)
     "Get a 4-byte flag from termios at byte offset."
@@ -295,7 +295,7 @@
   (defun %set-nonblocking (fd)
     "Set file descriptor to non-blocking mode."
     (ffi:c-inline (fd) (:int) :void
-      "fcntl(#0, F_SETFL, fcntl(#0, F_GETFL) | O_NONBLOCK)"))
+      "fcntl(#0, F_SETFL, fcntl(#0, F_GETFL) | O_NONBLOCK);"))
   
   (defun %read-byte-from-fd (fd)
     "Read a single byte from file descriptor."
@@ -309,18 +309,18 @@
   
   (defun %query-terminal-size (fd)
     "Query terminal size via ioctl."
-    (let ((cols 0) (rows 0))
-      (ffi:c-inline (fd) (:int) :void
-        "{
-           struct winsize ws;
-           if (ioctl(#0, TIOCGWINSZ, &ws) == 0) {
-             @cols = ws.ws_col;
-             @rows = ws.ws_row;
-           }
-         }")
-      (if (and (> cols 0) (> rows 0))
-          (list cols rows)
-          (list 80 24)))))
+    (let ((result (ffi:c-inline (fd) (:int) :object
+                    "{
+                       struct winsize ws;
+                       cl_object ret;
+                       if (ioctl(#0, TIOCGWINSZ, &ws) == 0 && ws.ws_col > 0 && ws.ws_row > 0) {
+                         ret = cl_list(2, ecl_make_fixnum(ws.ws_col), ecl_make_fixnum(ws.ws_row));
+                       } else {
+                         ret = cl_list(2, ecl_make_fixnum(80), ecl_make_fixnum(24));
+                       }
+                       @(return) = ret;
+                     }")))
+      result)))
 
 #-(or sbcl ccl ecl)
 (progn
