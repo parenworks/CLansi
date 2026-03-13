@@ -351,4 +351,40 @@
    #:menu-bar-select-prev
    #:menu-bar-open
    #:menu-bar-close
-   #:menu-bar-handle-key))
+   #:menu-bar-handle-key
+   
+   ;; Table widget
+   #:table-column
+   #:column-header
+   #:column-key
+   #:column-width
+   #:column-min-width
+   #:column-align
+   #:column-formatter
+   #:make-column
+   
+   #:table-widget
+   #:table-columns
+   #:table-rows
+   #:table-selected-row
+   #:table-scroll-offset
+   #:table-show-header-p
+   #:table-column-widths
+   #:table-sortable-p
+   #:table-sort-column
+   #:table-sort-ascending-p
+   #:table-select-next
+   #:table-select-prev
+   #:table-page-down
+   #:table-page-up
+   #:table-select-first
+   #:table-select-last
+   #:table-sort-by
+   #:table-handle-key
+   #:table-selected-data
+   #:table-visible-rows
+   #:table-ensure-visible
+   #:get-cell-value
+   #:format-cell-value
+   #:compute-column-widths
+   #:align-string))

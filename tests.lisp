@@ -683,6 +683,96 @@
     (is = 2 (menu-bar-selected-index bar))))  ; Wraps
 
 ;;; ============================================================
+;;; Table Tests
+;;; ============================================================
+
+(define-test table-tests
+  :parent clansi-tests)
+
+(define-test column-creation
+  :parent table-tests
+  (let ((col (make-column "Name" :name :width 20 :align :left)))
+    (is string= "Name" (column-header col))
+    (is eq :name (column-key col))
+    (is = 20 (column-width col))
+    (is eq :left (column-align col))))
+
+(define-test table-creation
+  :parent table-tests
+  (let* ((cols (list (make-column "Name" :name)
+                     (make-column "Age" :age :align :right)))
+         (rows (list '(:name "Alice" :age 30)
+                     '(:name "Bob" :age 25)))
+         (table (make-instance 'table-widget
+                               :columns cols :rows rows
+                               :x 1 :y 1 :width 40 :height 10)))
+    (is = 2 (length (table-columns table)))
+    (is = 2 (length (table-rows table)))
+    (is = 0 (table-selected-row table))))
+
+(define-test table-navigation
+  :parent table-tests
+  (let* ((cols (list (make-column "X" :x)))
+         (rows (list '(:x 1) '(:x 2) '(:x 3) '(:x 4) '(:x 5)))
+         (table (make-instance 'table-widget
+                               :columns cols :rows rows
+                               :x 1 :y 1 :width 20 :height 10)))
+    (is = 0 (table-selected-row table))
+    (table-select-next table)
+    (is = 1 (table-selected-row table))
+    (table-select-last table)
+    (is = 4 (table-selected-row table))
+    (table-select-first table)
+    (is = 0 (table-selected-row table))
+    (table-select-prev table)
+    (is = 0 (table-selected-row table))))  ; Can't go below 0
+
+(define-test table-selected-data
+  :parent table-tests
+  (let* ((cols (list (make-column "Name" :name)))
+         (rows (list '(:name "Alice") '(:name "Bob")))
+         (table (make-instance 'table-widget
+                               :columns cols :rows rows
+                               :x 1 :y 1 :width 20 :height 10)))
+    (is equal '(:name "Alice") (table-selected-data table))
+    (table-select-next table)
+    (is equal '(:name "Bob") (table-selected-data table))))
+
+(define-test get-cell-value-plist
+  :parent table-tests
+  (let ((col (make-column "Name" :name))
+        (row '(:name "Alice" :age 30)))
+    (is string= "Alice" (get-cell-value row col))))
+
+(define-test get-cell-value-alist
+  :parent table-tests
+  (let ((col (make-column "Name" :name))
+        (row '((:name . "Bob") (:age . 25))))
+    (is string= "Bob" (get-cell-value row col))))
+
+(define-test align-string-test
+  :parent table-tests
+  (is string= "foo  " (align-string "foo" 5 :left))
+  (is string= "  foo" (align-string "foo" 5 :right))
+  (is string= " foo " (align-string "foo" 5 :center))
+  (is string= "foo" (align-string "foobar" 3 :left)))  ; Truncates
+
+(define-test table-sorting
+  :parent table-tests
+  (let* ((cols (list (make-column "Name" :name)))
+         (rows (list '(:name "Charlie") '(:name "Alice") '(:name "Bob")))
+         (table (make-instance 'table-widget
+                               :columns cols :rows rows
+                               :sortable t
+                               :x 1 :y 1 :width 20 :height 10)))
+    (table-sort-by table 0)
+    (is string= "Alice" (getf (first (table-rows table)) :name))
+    (true (table-sort-ascending-p table))
+    (table-sort-by table 0)  ; Toggle to descending
+    (is string= "Charlie" (getf (first (table-rows table)) :name))
+    (false (table-sort-ascending-p table))))
+
+;;; ============================================================
 ;;; Run Tests
 ;;; ============================================================
 

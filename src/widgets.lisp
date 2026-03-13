@@ -1464,3 +1464,345 @@
         (panel-render (menu-bar-open-menu bar)))
       (force-output *terminal-io*))
     (setf (panel-dirty-p bar) nil)))
+
+;;; ============================================================
+;;; Table Column
+;;; ============================================================
+
+(defclass table-column ()
+  ((header :initarg :header :accessor column-header :initform ""
+           :documentation "Column header text")
+   (key :initarg :key :accessor column-key :initform nil
+        :documentation "Key function or slot name to extract value from row")
+   (width :initarg :width :accessor column-width :initform nil
+          :documentation "Fixed width, or nil for auto")
+   (min-width :initarg :min-width :accessor column-min-width :initform 3
+              :documentation "Minimum column width")
+   (align :initarg :align :accessor column-align :initform :left
+          :documentation "Alignment: :left, :right, or :center")
+   (formatter :initarg :formatter :accessor column-formatter :initform nil
+              :documentation "Function to format cell value for display"))
+  (:documentation "Definition of a table column."))
+
+(defun make-column (header key &key width min-width (align :left) formatter)
+  "Create a table column definition."
+  (make-instance 'table-column
+                 :header header :key key
+                 :width width :min-width (or min-width 3)
+                 :align align :formatter formatter))
+
+;;; ============================================================
+;;; Table Widget
+;;; ============================================================
+
+(defclass table-widget (panel)
+  ((columns :initarg :columns :accessor table-columns :initform nil
+            :documentation "List of table-column objects")
+   (rows :initarg :rows :accessor table-rows :initform nil
+         :documentation "List of row data (plists, alists, or objects)")
+   (selected-row :initarg :selected :accessor table-selected-row :initform 0
+                 :documentation "Currently selected row index")
+   (scroll-offset :initarg :scroll :accessor table-scroll-offset :initform 0
+                  :documentation "First visible row index")
+   (show-header-p :initarg :show-header :accessor table-show-header-p :initform t
+                  :documentation "Whether to show column headers")
+   (column-widths :accessor table-column-widths :initform nil
+                  :documentation "Computed column widths")
+   (sortable-p :initarg :sortable :accessor table-sortable-p :initform nil
+               :documentation "Whether columns are sortable")
+   (sort-column :accessor table-sort-column :initform nil
+                :documentation "Index of column being sorted")
+   (sort-ascending-p :accessor table-sort-ascending-p :initform t
+                     :documentation "Sort direction"))
+  (:default-initargs :border t)
+  (:documentation "Table widget with columns, rows, and optional sorting."))
+
+(defgeneric table-select-next (table)
+  (:documentation "Select next row."))
+
+(defgeneric table-select-prev (table)
+  (:documentation "Select previous row."))
+
+(defgeneric table-page-down (table)
+  (:documentation "Move down one page."))
+
+(defgeneric table-page-up (table)
+  (:documentation "Move up one page."))
+
+(defgeneric table-select-first (table)
+  (:documentation "Select first row."))
+
+(defgeneric table-select-last (table)
+  (:documentation "Select last row."))
+
+(defgeneric table-sort-by (table column-index)
+  (:documentation "Sort table by column."))
+
+(defgeneric table-handle-key (table key-event)
+  (:documentation "Handle key event."))
+
+(defgeneric table-selected-data (table)
+  (:documentation "Get currently selected row data."))
+
+(defun table-visible-rows (table)
+  "Return number of visible rows."
+  (let* ((h (panel-height table))
+         (border (if (panel-border-p table) 2 0))
+         (header (if (table-show-header-p table) 2 0)))  ; header + separator
+    (max 1 (- h border header))))
+
+(defun table-ensure-visible (table)
+  "Ensure selected row is visible."
+  (let ((selected (table-selected-row table))
+        (offset (table-scroll-offset table))
+        (visible (table-visible-rows table)))
+    (cond
+      ((< selected offset)
+       (setf (table-scroll-offset table) selected))
+      ((>= selected (+ offset visible))
+       (setf (table-scroll-offset table) (- selected visible -1))))))
+
+(defmethod table-select-next ((table table-widget))
+  "Select next row."
+  (let ((n (length (table-rows table))))
+    (when (> n 0)
+      (setf (table-selected-row table)
+            (min (1- n) (1+ (table-selected-row table))))
+      (table-ensure-visible table)
+      (setf (panel-dirty-p table) t))))
+
+(defmethod table-select-prev ((table table-widget))
+  "Select previous row."
+  (when (> (table-selected-row table) 0)
+    (decf (table-selected-row table))
+    (table-ensure-visible table)
+    (setf (panel-dirty-p table) t)))
+
+(defmethod table-page-down ((table table-widget))
+  "Move down one page."
+  (let* ((visible (table-visible-rows table))
+         (n (length (table-rows table))))
+    (setf (table-selected-row table)
+          (min (1- n) (+ (table-selected-row table) visible)))
+    (table-ensure-visible table)
+    (setf (panel-dirty-p table) t)))
+
+(defmethod table-page-up ((table table-widget))
+  "Move up one page."
+  (let ((visible (table-visible-rows table)))
+    (setf (table-selected-row table)
+          (max 0 (- (table-selected-row table) visible)))
+    (table-ensure-visible table)
+    (setf (panel-dirty-p table) t)))
+
+(defmethod table-select-first ((table table-widget))
+  "Select first row."
+  (setf (table-selected-row table) 0)
+  (table-ensure-visible table)
+  (setf (panel-dirty-p table) t))
+
+(defmethod table-select-last ((table table-widget))
+  "Select last row."
+  (let ((n (length (table-rows table))))
+    (when (> n 0)
+      (setf (table-selected-row table) (1- n))
+      (table-ensure-visible table)
+      (setf (panel-dirty-p table) t))))
+
+(defmethod table-selected-data ((table table-widget))
+  "Get currently selected row data."
+  (let ((rows (table-rows table))
+        (idx (table-selected-row table)))
+    (when (and rows (< idx (length rows)))
+      (nth idx rows))))
+
+(defun get-cell-value (row column)
+  "Extract cell value from row using column key."
+  (let ((key (column-key column)))
+    (cond
+      ((null key) "")
+      ((functionp key) (funcall key row))
+      ((symbolp key)
+       (cond
+         ((listp row)
+          (if (consp (car row))
+              ;; Alist
+              (cdr (assoc key row))
+              ;; Plist
+              (getf row key)))
+         (t
+          ;; Object - try slot
+          (if (slot-boundp row key)
+              (slot-value row key)
+              ""))))
+      (t ""))))
+
+(defun format-cell-value (value column)
+  "Format cell value for display."
+  (let ((formatter (column-formatter column)))
+    (if formatter
+        (funcall formatter value)
+        (if value (format nil "~A" value) ""))))
+
+(defun compute-column-widths (table)
+  "Compute column widths based on content."
+  (let* ((columns (table-columns table))
+         (rows (table-rows table))
+         (w (panel-width table))
+         (border (if (panel-border-p table) 2 0))
+         (available (- w border (1- (length columns))))  ; space for separators
+         (widths (make-list (length columns) :initial-element 0)))
+    ;; Calculate max width for each column
+    (loop for col in columns
+          for i from 0
+          do (let ((header-w (length (column-header col)))
+                   (max-data-w 0))
+               ;; Check data widths
+               (dolist (row rows)
+                 (let* ((val (get-cell-value row col))
+                        (str (format-cell-value val col)))
+                   (setf max-data-w (max max-data-w (length str)))))
+               ;; Use fixed width if specified, otherwise auto
+               (setf (nth i widths)
+                     (or (column-width col)
+                         (max (column-min-width col)
+                              header-w
+                              max-data-w)))))
+    ;; Scale down if total exceeds available
+    (let ((total (reduce #'+ widths)))
+      (when (> total available)
+        (let ((scale (/ available total)))
+          (setf widths (mapcar (lambda (w) 
+                                 (max 3 (floor (* w scale))))
+                               widths)))))
+    (setf (table-column-widths table) widths)))
+
+(defun align-string (str width align)
+  "Align string within width."
+  (let ((len (length str)))
+    (cond
+      ((>= len width) (subseq str 0 width))
+      ((eq align :right)
+       (concatenate 'string (make-string (- width len) :initial-element #\Space) str))
+      ((eq align :center)
+       (let* ((pad (- width len))
+              (left (floor pad 2))
+              (right (- pad left)))
+         (concatenate 'string
+                      (make-string left :initial-element #\Space)
+                      str
+                      (make-string right :initial-element #\Space))))
+      (t  ; :left
+       (concatenate 'string str (make-string (- width len) :initial-element #\Space))))))
+
+(defmethod table-sort-by ((table table-widget) column-index)
+  "Sort table by column."
+  (when (table-sortable-p table)
+    (let* ((col (nth column-index (table-columns table)))
+           (ascending (if (eql column-index (table-sort-column table))
+                          (not (table-sort-ascending-p table))
+                          t)))
+      (setf (table-sort-column table) column-index)
+      (setf (table-sort-ascending-p table) ascending)
+      (setf (table-rows table)
+            (sort (copy-list (table-rows table))
+                  (lambda (a b)
+                    (let ((va (get-cell-value a col))
+                          (vb (get-cell-value b col)))
+                      (if ascending
+                          (string< (format nil "~A" va) (format nil "~A" vb))
+                          (string> (format nil "~A" va) (format nil "~A" vb)))))))
+      (setf (panel-dirty-p table) t))))
+
+(defmethod table-handle-key ((table table-widget) key-event)
+  "Handle key event. Returns T if handled."
+  (let ((code (key-event-code key-event))
+        (char (key-event-char key-event)))
+    (cond
+      ((or (eql code +key-up+) (eql char #\k))
+       (table-select-prev table) t)
+      ((or (eql code +key-down+) (eql char #\j))
+       (table-select-next table) t)
+      ((eql code +key-page-down+)
+       (table-page-down table) t)
+      ((eql code +key-page-up+)
+       (table-page-up table) t)
+      ((or (eql code +key-home+) (eql char #\g))
+       (table-select-first table) t)
+      ((or (eql code +key-end+) (eql char #\G))
+       (table-select-last table) t)
+      ;; Number keys for sorting columns 1-9
+      ((and (table-sortable-p table)
+            char
+            (digit-char-p char)
+            (> (digit-char-p char) 0)
+            (<= (digit-char-p char) (length (table-columns table))))
+       (table-sort-by table (1- (digit-char-p char))) t)
+      (t nil))))
+
+(defmethod panel-render ((table table-widget))
+  "Render the table."
+  (when (panel-visible-p table)
+    (let* ((x (panel-x table))
+           (y (panel-y table))
+           (w (panel-width table))
+           (h (panel-height table))
+           (columns (table-columns table))
+           (rows (table-rows table))
+           (selected (table-selected-row table))
+           (offset (table-scroll-offset table))
+           (show-header (table-show-header-p table))
+           (border-p (panel-border-p table)))
+      ;; Compute column widths if needed
+      (unless (table-column-widths table)
+        (compute-column-widths table))
+      (let ((widths (table-column-widths table))
+            (content-x (if border-p (1+ x) x))
+            (content-y (if border-p (1+ y) y))
+            (content-w (if border-p (- w 2) w))
+            (content-h (if border-p (- h 2) h)))
+        ;; Draw border
+        (when border-p
+          (draw-box x y w h))
+        ;; Draw header
+        (when show-header
+          (cursor-to content-y content-x)
+          (bold)
+          (loop for col in columns
+                for width in widths
+                for i from 0
+                do (when (> i 0) (write-char #\│ *terminal-io*))
+                   (let* ((header (column-header col))
+                          (sort-indicator (if (and (table-sortable-p table)
+                                                   (eql i (table-sort-column table)))
+                                              (if (table-sort-ascending-p table) "▲" "▼")
+                                              ""))
+                          (text (concatenate 'string header sort-indicator)))
+                     (princ (align-string text width (column-align col)) *terminal-io*)))
+          (reset)
+          ;; Header separator
+          (cursor-to (1+ content-y) content-x)
+          (loop for width in widths
+                for i from 0
+                do (when (> i 0) (write-char #\┼ *terminal-io*))
+                   (loop repeat width do (write-char #\─ *terminal-io*))))
+        ;; Draw rows
+        (let ((data-y (+ content-y (if show-header 2 0)))
+              (visible (table-visible-rows table)))
+          (loop for row-idx from offset below (min (length rows) (+ offset visible))
+                for row = (nth row-idx rows)
+                for row-y = (+ data-y (- row-idx offset))
+                do (cursor-to row-y content-x)
+                   (when (= row-idx selected)
+                     (reverse-video))
+                   (loop for col in columns
+                         for width in widths
+                         for i from 0
+                         do (when (> i 0) (write-char #\│ *terminal-io*))
+                            (let* ((val (get-cell-value row col))
+                                   (str (format-cell-value val col)))
+                              (princ (align-string str width (column-align col)) *terminal-io*)))
+                   (when (= row-idx selected)
+                     (reset))))
+        (force-output *terminal-io*)))
+    (setf (panel-dirty-p table) nil)))
