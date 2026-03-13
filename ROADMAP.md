@@ -31,7 +31,7 @@
 
 - [ ] **macOS support** - Test and fix Darwin-specific termios differences
 - [x] **Signal handling** - SIGWINCH for terminal resize events
-- [ ] **Double-buffering** - Reduce flicker with screen diffing
+- [x] **Double-buffering** - Reduce flicker with screen diffing
 
 ---
 

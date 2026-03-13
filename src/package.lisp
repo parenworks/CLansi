@@ -247,4 +247,48 @@
    #:split-show-divider-p
    #:split-divider-char
    #:split-set-children
-   #:split-adjust))
+   #:split-adjust
+   
+   ;; Screen buffer (double-buffering)
+   #:cell
+   #:make-cell
+   #:cell-char
+   #:cell-fg
+   #:cell-bg
+   #:cell-style
+   #:cell-equal
+   
+   #:screen-buffer
+   #:buffer-width
+   #:buffer-height
+   #:buffer-cells
+   #:buffer-cursor-x
+   #:buffer-cursor-y
+   #:buffer-cursor-visible
+   #:buffer-clear
+   #:buffer-resize
+   #:buffer-set-cell
+   #:buffer-get-cell
+   #:buffer-write-string
+   #:buffer-fill-rect
+   
+   #:screen
+   #:screen-front
+   #:screen-back
+   #:screen-width
+   #:screen-height
+   #:screen-stream
+   #:screen-resize
+   #:screen-clear
+   #:screen-set-cell
+   #:screen-write-string
+   #:screen-fill-rect
+   #:screen-set-cursor
+   #:screen-show-cursor
+   #:screen-present
+   #:screen-force-redraw
+   
+   #:*screen*
+   #:init-screen
+   #:term-screen
+   #:with-screen))

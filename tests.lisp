@@ -437,6 +437,79 @@
     (is = 24 (key-event-mouse-y event))))
 
 ;;; ============================================================
+;;; Screen Buffer Tests
+;;; ============================================================
+
+(define-test screen-buffer-tests
+  :parent clansi-tests)
+
+(define-test cell-creation
+  :parent screen-buffer-tests
+  (let ((cell (make-cell #\A)))
+    (is eql #\A (cell-char cell))
+    (is eq nil (cell-fg cell))
+    (is eq nil (cell-bg cell))))
+
+(define-test cell-equality
+  :parent screen-buffer-tests
+  (let ((c1 (make-cell #\A))
+        (c2 (make-cell #\A))
+        (c3 (make-cell #\B)))
+    (true (cell-equal c1 c2))
+    (false (cell-equal c1 c3))))
+
+(define-test buffer-creation
+  :parent screen-buffer-tests
+  (let ((buf (make-instance 'screen-buffer :width 40 :height 10)))
+    (is = 40 (buffer-width buf))
+    (is = 10 (buffer-height buf))
+    (is eql #\Space (cell-char (buffer-get-cell buf 1 1)))))
+
+(define-test buffer-set-get-cell
+  :parent screen-buffer-tests
+  (let ((buf (make-instance 'screen-buffer :width 40 :height 10)))
+    (buffer-set-cell buf 5 3 #\X)
+    (is eql #\X (cell-char (buffer-get-cell buf 5 3)))
+    ;; Out of bounds returns nil
+    (is eq nil (buffer-get-cell buf 100 100))))
+
+(define-test buffer-write-string-test
+  :parent screen-buffer-tests
+  (let ((buf (make-instance 'screen-buffer :width 40 :height 10)))
+    (buffer-write-string buf 1 1 "Hello")
+    (is eql #\H (cell-char (buffer-get-cell buf 1 1)))
+    (is eql #\e (cell-char (buffer-get-cell buf 2 1)))
+    (is eql #\l (cell-char (buffer-get-cell buf 3 1)))
+    (is eql #\l (cell-char (buffer-get-cell buf 4 1)))
+    (is eql #\o (cell-char (buffer-get-cell buf 5 1)))))
+
+(define-test buffer-resize-test
+  :parent screen-buffer-tests
+  (let ((buf (make-instance 'screen-buffer :width 40 :height 10)))
+    (buffer-set-cell buf 5 3 #\X)
+    (buffer-resize buf 80 24)
+    (is = 80 (buffer-width buf))
+    (is = 24 (buffer-height buf))
+    ;; Old content preserved
+    (is eql #\X (cell-char (buffer-get-cell buf 5 3)))))
+
+(define-test screen-creation
+  :parent screen-buffer-tests
+  (let ((scr (make-instance 'screen :width 80 :height 24)))
+    (is = 80 (screen-width scr))
+    (is = 24 (screen-height scr))
+    (true (screen-front scr))
+    (true (screen-back scr))))
+
+(define-test screen-write-operations
+  :parent screen-buffer-tests
+  (let ((scr (make-instance 'screen :width 80 :height 24)))
+    (screen-set-cell scr 10 5 #\Z)
+    (is eql #\Z (cell-char (buffer-get-cell (screen-back scr) 10 5)))
+    (screen-write-string scr 1 1 "Test")
+    (is eql #\T (cell-char (buffer-get-cell (screen-back scr) 1 1)))))
+
+;;; ============================================================
 ;;; Run Tests
 ;;; ============================================================
 
