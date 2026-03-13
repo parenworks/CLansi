@@ -9,7 +9,7 @@ A lightweight, pure-Lisp ANSI terminal control library. No ncurses dependency.
 - **Raw terminal mode** - Character-by-character input with proper cleanup
 - **Key event parsing** - Arrow keys, function keys, mouse events, UTF-8
 - **Widget system** - Base panel class and scrollable list for building TUIs
-- **Portable** - Supports SBCL, with CCL and ECL compatibility layer
+- **Portable** - Full support for SBCL, CCL, and ECL on Linux
 
 ## Installation
 
@@ -173,12 +173,21 @@ Then load:
 ## Supported Terminals
 
 Tested with:
+
 - Alacritty
 - Kitty
 - GNOME Terminal / VTE-based
 - iTerm2
 - Windows Terminal
 - xterm
+
+## Bug Reports & Contributing
+
+Please report bugs and feature requests via GitHub Issues:
+
+https://github.com/parenworks/CLansi/issues
+
+Pull requests are welcome!
 
 ## License
 
@@ -187,6 +196,7 @@ MIT
 ## Credits
 
 Extracted from terminal UI code developed for:
+
 - [CLatter](https://github.com/glenneth1/CLatter) - IRC client
 - [CLabber](https://github.com/glenneth1/CLabber) - XMPP client  
 - [gilt](https://github.com/glenneth1/gilt) - Git TUI

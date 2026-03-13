@@ -6,6 +6,7 @@
   :author "parenworks"
   :license "MIT"
   :version "0.1.0"
+  :homepage "https://github.com/parenworks/CLansi"
   :depends-on (#:alexandria
                #:trivial-features)
   :serial t
