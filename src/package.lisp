@@ -316,4 +316,39 @@
    #:split-string
    #:make-alert
    #:make-confirm
-   #:make-input-prompt))
+   #:make-input-prompt
+   
+   ;; Menu system
+   #:menu-item
+   #:menu-item-label
+   #:menu-item-value
+   #:menu-item-shortcut
+   #:menu-item-enabled-p
+   #:menu-item-separator-p
+   #:make-menu-item
+   #:make-separator
+   
+   #:menu
+   #:menu-items
+   #:menu-selected-index
+   #:menu-result
+   #:menu-closed-p
+   #:menu-select-next
+   #:menu-select-prev
+   #:menu-confirm
+   #:menu-cancel
+   #:menu-handle-key
+   #:menu-selectable-p
+   #:compute-menu-dimensions
+   #:make-menu
+   
+   #:menu-bar
+   #:menu-bar-menus
+   #:menu-bar-selected-index
+   #:menu-bar-open-menu
+   #:menu-bar-active-p
+   #:menu-bar-select-next
+   #:menu-bar-select-prev
+   #:menu-bar-open
+   #:menu-bar-close
+   #:menu-bar-handle-key))

@@ -38,7 +38,7 @@
 ## v0.3.0 - Interactive Components
 
 - [x] **Modal dialogs** - Confirmation boxes, input prompts
-- [ ] **Menu system** - Dropdown/popup menus with keyboard navigation
+- [x] **Menu system** - Dropdown/popup menus with keyboard navigation
 - [ ] **Table widget** - Columnar data display with sorting
 - [ ] **Form system** - Tab-navigable input forms
 - [ ] **Tree view** - Expandable/collapsible hierarchical display

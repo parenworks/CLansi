@@ -581,6 +581,108 @@
     (is = 2 (length (dialog-buttons dialog)))))
 
 ;;; ============================================================
+;;; Menu Tests
+;;; ============================================================
+
+(define-test menu-tests
+  :parent clansi-tests)
+
+(define-test menu-item-creation
+  :parent menu-tests
+  (let ((item (make-menu-item "Open" :shortcut #\o :value :open)))
+    (is string= "Open" (menu-item-label item))
+    (is eq :open (menu-item-value item))
+    (is eql #\o (menu-item-shortcut item))
+    (true (menu-item-enabled-p item))
+    (false (menu-item-separator-p item))))
+
+(define-test separator-creation
+  :parent menu-tests
+  (let ((sep (make-separator)))
+    (true (menu-item-separator-p sep))))
+
+(define-test menu-creation
+  :parent menu-tests
+  (let* ((items (list (make-menu-item "New")
+                      (make-menu-item "Open")
+                      (make-menu-item "Save")))
+         (menu (make-instance 'menu :items items :x 1 :y 1 :width 20 :height 5)))
+    (is = 3 (length (menu-items menu)))
+    (is = 0 (menu-selected-index menu))
+    (false (menu-closed-p menu))))
+
+(define-test menu-navigation
+  :parent menu-tests
+  (let* ((items (list (make-menu-item "A")
+                      (make-menu-item "B")
+                      (make-menu-item "C")))
+         (menu (make-instance 'menu :items items :x 1 :y 1 :width 20 :height 5)))
+    (is = 0 (menu-selected-index menu))
+    (menu-select-next menu)
+    (is = 1 (menu-selected-index menu))
+    (menu-select-next menu)
+    (is = 2 (menu-selected-index menu))
+    (menu-select-next menu)
+    (is = 0 (menu-selected-index menu))  ; Wraps
+    (menu-select-prev menu)
+    (is = 2 (menu-selected-index menu))))
+
+(define-test menu-skips-separators
+  :parent menu-tests
+  (let* ((items (list (make-menu-item "A")
+                      (make-separator)
+                      (make-menu-item "B")))
+         (menu (make-instance 'menu :items items :x 1 :y 1 :width 20 :height 5)))
+    (is = 0 (menu-selected-index menu))
+    (menu-select-next menu)
+    (is = 2 (menu-selected-index menu))))  ; Skips separator
+
+(define-test menu-skips-disabled
+  :parent menu-tests
+  (let* ((items (list (make-menu-item "A")
+                      (make-menu-item "B" :enabled nil)
+                      (make-menu-item "C")))
+         (menu (make-instance 'menu :items items :x 1 :y 1 :width 20 :height 5)))
+    (menu-select-next menu)
+    (is = 2 (menu-selected-index menu))))  ; Skips disabled
+
+(define-test menu-confirm-cancel
+  :parent menu-tests
+  (let* ((items (list (make-menu-item "A" :value :a)
+                      (make-menu-item "B" :value :b)))
+         (menu (make-instance 'menu :items items :x 1 :y 1 :width 20 :height 4)))
+    (menu-select-next menu)
+    (menu-confirm menu)
+    (is eq :b (menu-result menu))
+    (true (menu-closed-p menu)))
+  (let* ((items (list (make-menu-item "A")))
+         (menu (make-instance 'menu :items items :x 1 :y 1 :width 20 :height 3)))
+    (menu-cancel menu)
+    (is eq nil (menu-result menu))
+    (true (menu-closed-p menu))))
+
+(define-test menu-bar-creation
+  :parent menu-tests
+  (let ((bar (make-instance 'menu-bar
+                            :menus '(("File" . nil) ("Edit" . nil))
+                            :x 1 :y 1 :width 80)))
+    (is = 2 (length (menu-bar-menus bar)))
+    (is = 0 (menu-bar-selected-index bar))
+    (false (menu-bar-active-p bar))))
+
+(define-test menu-bar-navigation
+  :parent menu-tests
+  (let ((bar (make-instance 'menu-bar
+                            :menus '(("File" . nil) ("Edit" . nil) ("View" . nil))
+                            :x 1 :y 1 :width 80)))
+    (menu-bar-select-next bar)
+    (is = 1 (menu-bar-selected-index bar))
+    (menu-bar-select-prev bar)
+    (is = 0 (menu-bar-selected-index bar))
+    (menu-bar-select-prev bar)
+    (is = 2 (menu-bar-selected-index bar))))  ; Wraps
+
+;;; ============================================================
 ;;; Run Tests
 ;;; ============================================================
 

@@ -1110,3 +1110,357 @@
     (make-instance 'input-dialog
                    :x x :y y :width width :height height
                    :title title :prompt prompt)))
+
+;;; ============================================================
+;;; Menu Item
+;;; ============================================================
+
+(defclass menu-item ()
+  ((label :initarg :label :accessor menu-item-label :initform ""
+          :documentation "Display text for menu item")
+   (value :initarg :value :accessor menu-item-value :initform nil
+          :documentation "Value returned when selected")
+   (shortcut :initarg :shortcut :accessor menu-item-shortcut :initform nil
+             :documentation "Keyboard shortcut character")
+   (enabled-p :initarg :enabled :accessor menu-item-enabled-p :initform t
+              :documentation "Whether item is selectable")
+   (separator-p :initarg :separator :accessor menu-item-separator-p :initform nil
+                :documentation "If true, this is a separator line"))
+  (:documentation "A single menu item."))
+
+(defun make-menu-item (label &key value shortcut (enabled t))
+  "Create a menu item."
+  (make-instance 'menu-item
+                 :label label :value (or value label)
+                 :shortcut shortcut :enabled enabled))
+
+(defun make-separator ()
+  "Create a menu separator."
+  (make-instance 'menu-item :separator t))
+
+;;; ============================================================
+;;; Menu Widget
+;;; ============================================================
+
+(defclass menu (panel)
+  ((items :initarg :items :accessor menu-items :initform nil
+          :documentation "List of menu-item objects")
+   (selected-index :initarg :selected :accessor menu-selected-index :initform 0
+                   :documentation "Currently highlighted item index")
+   (result :accessor menu-result :initform nil
+           :documentation "Selected item value after close")
+   (closed-p :accessor menu-closed-p :initform nil
+             :documentation "Whether menu has been closed"))
+  (:default-initargs :border t)
+  (:documentation "Popup menu with keyboard navigation."))
+
+(defgeneric menu-select-next (menu)
+  (:documentation "Move selection to next enabled item."))
+
+(defgeneric menu-select-prev (menu)
+  (:documentation "Move selection to previous enabled item."))
+
+(defgeneric menu-confirm (menu)
+  (:documentation "Confirm current selection."))
+
+(defgeneric menu-cancel (menu)
+  (:documentation "Cancel menu."))
+
+(defgeneric menu-handle-key (menu key-event)
+  (:documentation "Handle key event in menu."))
+
+(defun menu-selectable-p (item)
+  "Return T if item can be selected."
+  (and (not (menu-item-separator-p item))
+       (menu-item-enabled-p item)))
+
+(defmethod menu-select-next ((menu menu))
+  "Move to next selectable item."
+  (let* ((items (menu-items menu))
+         (n (length items))
+         (start (menu-selected-index menu)))
+    (loop for i from 1 below n
+          for idx = (mod (+ start i) n)
+          for item = (nth idx items)
+          when (menu-selectable-p item)
+            do (setf (menu-selected-index menu) idx)
+               (setf (panel-dirty-p menu) t)
+               (return))))
+
+(defmethod menu-select-prev ((menu menu))
+  "Move to previous selectable item."
+  (let* ((items (menu-items menu))
+         (n (length items))
+         (start (menu-selected-index menu)))
+    (loop for i from 1 below n
+          for idx = (mod (- start i) n)
+          for item = (nth idx items)
+          when (menu-selectable-p item)
+            do (setf (menu-selected-index menu) idx)
+               (setf (panel-dirty-p menu) t)
+               (return))))
+
+(defmethod menu-confirm ((menu menu))
+  "Confirm selection."
+  (let* ((idx (menu-selected-index menu))
+         (item (nth idx (menu-items menu))))
+    (when (and item (menu-selectable-p item))
+      (setf (menu-result menu) (menu-item-value item))
+      (setf (menu-closed-p menu) t))))
+
+(defmethod menu-cancel ((menu menu))
+  "Cancel menu."
+  (setf (menu-result menu) nil)
+  (setf (menu-closed-p menu) t))
+
+(defmethod menu-handle-key ((menu menu) key-event)
+  "Handle key event. Returns T if handled."
+  (let ((code (key-event-code key-event))
+        (char (key-event-char key-event)))
+    ;; Check shortcuts first
+    (when char
+      (let ((items (menu-items menu)))
+        (loop for item in items
+              for i from 0
+              when (and (menu-selectable-p item)
+                        (menu-item-shortcut item)
+                        (char-equal char (menu-item-shortcut item)))
+                do (setf (menu-selected-index menu) i)
+                   (menu-confirm menu)
+                   (return-from menu-handle-key t))))
+    ;; Navigation
+    (cond
+      ((or (eql code +key-up+) (eql char #\k))
+       (menu-select-prev menu) t)
+      ((or (eql code +key-down+) (eql char #\j))
+       (menu-select-next menu) t)
+      ((or (eql code +key-enter+) (eql char #\Space))
+       (menu-confirm menu) t)
+      ((or (eql code +key-escape+) (eql char #\q))
+       (menu-cancel menu) t)
+      ((eql code +key-home+)
+       (setf (menu-selected-index menu) 0)
+       (unless (menu-selectable-p (nth 0 (menu-items menu)))
+         (menu-select-next menu))
+       t)
+      ((eql code +key-end+)
+       (setf (menu-selected-index menu) (1- (length (menu-items menu))))
+       (unless (menu-selectable-p (nth (menu-selected-index menu) (menu-items menu)))
+         (menu-select-prev menu))
+       t)
+      (t nil))))
+
+(defmethod panel-render ((menu menu))
+  "Render the menu."
+  (when (panel-visible-p menu)
+    (let* ((x (panel-x menu))
+           (y (panel-y menu))
+           (w (panel-width menu))
+           (h (panel-height menu))
+           (title (panel-title menu))
+           (items (menu-items menu))
+           (selected (menu-selected-index menu)))
+      ;; Draw border
+      (draw-box x y w h)
+      ;; Draw title
+      (when title
+        (cursor-to y (+ x 2))
+        (format *terminal-io* " ~A " title))
+      ;; Draw items
+      (loop for item in items
+            for i from 0
+            for row = (+ y 1 i)
+            while (< row (+ y h -1))
+            do (cursor-to row (1+ x))
+               (cond
+                 ((menu-item-separator-p item)
+                  ;; Separator line
+                  (write-char #\├ *terminal-io*)
+                  (loop repeat (- w 2) do (write-char #\─ *terminal-io*))
+                  (write-char #\┤ *terminal-io*))
+                 (t
+                  ;; Regular item
+                  (let* ((label (menu-item-label item))
+                         (shortcut (menu-item-shortcut item))
+                         (enabled (menu-item-enabled-p item))
+                         (is-selected (= i selected))
+                         (display-text (if shortcut
+                                           (format nil "~A (~A)" label shortcut)
+                                           label))
+                         (padded (pad-string display-text (- w 2))))
+                    (when is-selected
+                      (reverse-video))
+                    (unless enabled
+                      (dim))
+                    (princ padded *terminal-io*)
+                    (when (or is-selected (not enabled))
+                      (reset))))))
+      (force-output *terminal-io*))
+    (setf (panel-dirty-p menu) nil)))
+
+(defun compute-menu-dimensions (items &optional title)
+  "Compute width and height needed for menu items."
+  (let* ((max-label (reduce #'max items
+                            :key (lambda (item)
+                                   (if (menu-item-separator-p item)
+                                       0
+                                       (+ (length (menu-item-label item))
+                                          (if (menu-item-shortcut item) 4 0))))
+                            :initial-value 0))
+         (title-len (if title (+ (length title) 4) 0))
+         (width (+ (max max-label title-len) 4))
+         (height (+ (length items) 2)))
+    (values width height)))
+
+(defun make-menu (items &key title x y)
+  "Create a popup menu. If x/y not specified, centers on screen."
+  (multiple-value-bind (w h) (compute-menu-dimensions items title)
+    (let* ((term-size (terminal-size))
+           (term-w (first term-size))
+           (term-h (second term-size))
+           (menu-x (or x (1+ (floor (- term-w w) 2))))
+           (menu-y (or y (1+ (floor (- term-h h) 2)))))
+      (make-instance 'menu
+                     :x menu-x :y menu-y :width w :height h
+                     :title title :items items))))
+
+;;; ============================================================
+;;; Menu Bar
+;;; ============================================================
+
+(defclass menu-bar (panel)
+  ((menus :initarg :menus :accessor menu-bar-menus :initform nil
+          :documentation "Alist of (label . menu-items)")
+   (selected-index :initarg :selected :accessor menu-bar-selected-index :initform 0
+                   :documentation "Currently selected menu")
+   (open-menu :accessor menu-bar-open-menu :initform nil
+              :documentation "Currently open dropdown menu")
+   (active-p :initarg :active :accessor menu-bar-active-p :initform nil
+             :documentation "Whether menu bar is active"))
+  (:default-initargs :height 1)
+  (:documentation "Horizontal menu bar with dropdown menus."))
+
+(defgeneric menu-bar-select-next (bar)
+  (:documentation "Select next menu."))
+
+(defgeneric menu-bar-select-prev (bar)
+  (:documentation "Select previous menu."))
+
+(defgeneric menu-bar-open (bar)
+  (:documentation "Open currently selected menu."))
+
+(defgeneric menu-bar-close (bar)
+  (:documentation "Close open menu."))
+
+(defgeneric menu-bar-handle-key (bar key-event)
+  (:documentation "Handle key event."))
+
+(defmethod menu-bar-select-next ((bar menu-bar))
+  "Select next menu."
+  (let ((n (length (menu-bar-menus bar))))
+    (when (> n 0)
+      (setf (menu-bar-selected-index bar)
+            (mod (1+ (menu-bar-selected-index bar)) n))
+      (setf (panel-dirty-p bar) t)
+      ;; If menu is open, switch to new menu
+      (when (menu-bar-open-menu bar)
+        (menu-bar-open bar)))))
+
+(defmethod menu-bar-select-prev ((bar menu-bar))
+  "Select previous menu."
+  (let ((n (length (menu-bar-menus bar))))
+    (when (> n 0)
+      (setf (menu-bar-selected-index bar)
+            (mod (1- (menu-bar-selected-index bar)) n))
+      (setf (panel-dirty-p bar) t)
+      (when (menu-bar-open-menu bar)
+        (menu-bar-open bar)))))
+
+(defmethod menu-bar-open ((bar menu-bar))
+  "Open dropdown for selected menu."
+  (let* ((idx (menu-bar-selected-index bar))
+         (menus (menu-bar-menus bar))
+         (entry (nth idx menus)))
+    (when entry
+      (let* ((label (car entry))
+             (items (cdr entry))
+             ;; Calculate x position
+             (x (+ (panel-x bar)
+                   (loop for i below idx
+                         for e in menus
+                         sum (+ (length (car e)) 3))))
+             (y (+ (panel-y bar) 1)))
+        (declare (ignore label))
+        (setf (menu-bar-open-menu bar)
+              (make-menu items :x x :y y))))))
+
+(defmethod menu-bar-close ((bar menu-bar))
+  "Close open menu."
+  (setf (menu-bar-open-menu bar) nil)
+  (setf (panel-dirty-p bar) t))
+
+(defmethod menu-bar-handle-key ((bar menu-bar) key-event)
+  "Handle key event. Returns T if handled, or selected value."
+  (let ((open-menu (menu-bar-open-menu bar))
+        (code (key-event-code key-event))
+        (char (key-event-char key-event)))
+    (cond
+      ;; If menu is open, delegate to it
+      (open-menu
+       (cond
+         ((or (eql code +key-left+) (eql char #\h))
+          (menu-bar-select-prev bar) t)
+         ((or (eql code +key-right+) (eql char #\l))
+          (menu-bar-select-next bar) t)
+         ((eql code +key-escape+)
+          (menu-bar-close bar) t)
+         (t
+          (menu-handle-key open-menu key-event)
+          (when (menu-closed-p open-menu)
+            (let ((result (menu-result open-menu)))
+              (menu-bar-close bar)
+              (when result
+                (return-from menu-bar-handle-key result))))
+          t)))
+      ;; Menu bar navigation
+      ((or (eql code +key-left+) (eql char #\h))
+       (menu-bar-select-prev bar) t)
+      ((or (eql code +key-right+) (eql char #\l))
+       (menu-bar-select-next bar) t)
+      ((or (eql code +key-enter+) (eql code +key-down+) (eql char #\Space))
+       (menu-bar-open bar) t)
+      ((eql code +key-escape+)
+       (setf (menu-bar-active-p bar) nil) t)
+      (t nil))))
+
+(defmethod panel-render ((bar menu-bar))
+  "Render the menu bar."
+  (when (panel-visible-p bar)
+    (let* ((x (panel-x bar))
+           (y (panel-y bar))
+           (w (panel-width bar))
+           (menus (menu-bar-menus bar))
+           (selected (menu-bar-selected-index bar))
+           (active (menu-bar-active-p bar)))
+      ;; Clear line
+      (cursor-to y x)
+      (reverse-video)
+      (loop repeat w do (write-char #\Space *terminal-io*))
+      ;; Draw menu labels
+      (cursor-to y x)
+      (loop for entry in menus
+            for i from 0
+            for label = (car entry)
+            do (when (and active (= i selected))
+                 (reset)
+                 (bold))
+               (format *terminal-io* " ~A " label)
+               (when (and active (= i selected))
+                 (reset)
+                 (reverse-video)))
+      (reset)
+      ;; Render open dropdown
+      (when (menu-bar-open-menu bar)
+        (panel-render (menu-bar-open-menu bar)))
+      (force-output *terminal-io*))
+    (setf (panel-dirty-p bar) nil)))
