@@ -1070,6 +1070,150 @@
     (setf *accessibility-enabled* nil)))
 
 ;;; ============================================================
+;;; Declarative UI DSL Tests
+;;; ============================================================
+
+(define-test dsl-tests
+  :parent clansi-tests)
+
+;; Reactive State Tests
+(define-test state-creation
+  :parent dsl-tests
+  (let ((s (make-state 42 'test-state)))
+    (is = 42 (state-get s))
+    (is eq 'test-state (state-name s))))
+
+(define-test state-set-get
+  :parent dsl-tests
+  (let ((s (make-state 0)))
+    (state-set s 10)
+    (is = 10 (state-get s))
+    (state-set s 20)
+    (is = 20 (state-get s))))
+
+(define-test state-update
+  :parent dsl-tests
+  (let ((s (make-state 5)))
+    (state-update s #'1+)
+    (is = 6 (state-get s))
+    (state-update s (lambda (x) (* x 2)))
+    (is = 12 (state-get s))))
+
+(define-test state-subscribe
+  :parent dsl-tests
+  (let ((s (make-state 0))
+        (called nil)
+        (received-value nil))
+    (state-subscribe s (lambda (v) 
+                         (setf called t)
+                         (setf received-value v)))
+    (state-set s 42)
+    (true called)
+    (is = 42 received-value)))
+
+(define-test state-unsubscribe
+  :parent dsl-tests
+  (let ((s (make-state 0))
+        (call-count 0))
+    (let ((handler (lambda (v) (declare (ignore v)) (incf call-count))))
+      (state-subscribe s handler)
+      (state-set s 1)
+      (is = 1 call-count)
+      (state-unsubscribe s handler)
+      (state-set s 2)
+      (is = 1 call-count))))  ; Should not have been called again
+
+(define-test with-state-macro
+  :parent dsl-tests
+  (with-state ((count 0) (name "test"))
+    (true (typep count 'reactive-state))
+    (true (typep name 'reactive-state))
+    (is = 0 (state-get count))
+    (is string= "test" (state-get name))))
+
+;; VNode Tests
+(define-test vnode-creation
+  :parent dsl-tests
+  (let ((node (make-vnode :type 'panel :props '(:width 10) :children nil)))
+    (is eq 'panel (vnode-type node))
+    (is equal '(:width 10) (vnode-props node))
+    (true (null (vnode-children node)))))
+
+(define-test create-element-test
+  :parent dsl-tests
+  (let ((el (create-element 'panel '(:width 20 :height 10))))
+    (is eq 'panel (vnode-type el))
+    (is equal '(:width 20 :height 10) (vnode-props el))))
+
+(define-test create-element-with-children
+  :parent dsl-tests
+  (let ((el (create-element 'panel '(:width 20)
+              (create-element 'text-node '(:value "Hello"))
+              (create-element 'text-node '(:value "World")))))
+    (is = 2 (length (vnode-children el)))
+    (is eq 'text-node (vnode-type (first (vnode-children el))))))
+
+;; Diffing Tests
+(define-test diff-identical-vnodes
+  :parent dsl-tests
+  (let ((a (make-vnode :type 'panel :props '(:width 10)))
+        (b (make-vnode :type 'panel :props '(:width 10))))
+    (true (null (diff-vnodes a b)))))
+
+(define-test diff-different-props
+  :parent dsl-tests
+  (let ((a (make-vnode :type 'panel :props '(:width 10)))
+        (b (make-vnode :type 'panel :props '(:width 20))))
+    (let ((patches (diff-vnodes a b)))
+      (is = 1 (length patches))
+      (is eq :update-props (first (first patches))))))
+
+(define-test diff-different-types
+  :parent dsl-tests
+  (let ((a (make-vnode :type 'panel :props nil))
+        (b (make-vnode :type 'text-node :props nil)))
+    (let ((patches (diff-vnodes a b)))
+      (is = 1 (length patches))
+      (is eq :replace (first (first patches))))))
+
+(define-test diff-create-node
+  :parent dsl-tests
+  (let ((patches (diff-vnodes nil (make-vnode :type 'panel))))
+    (is = 1 (length patches))
+    (is eq :create (first (first patches)))))
+
+(define-test diff-remove-node
+  :parent dsl-tests
+  (let ((patches (diff-vnodes (make-vnode :type 'panel) nil)))
+    (is = 1 (length patches))
+    (is eq :remove (first (first patches)))))
+
+;; Event System Tests
+(define-test event-register-dispatch
+  :parent dsl-tests
+  (let ((received nil))
+    (let ((id (register-handler :test-event 
+                                (lambda (data) (setf received data)))))
+      (dispatch-event :test-event "hello")
+      (is string= "hello" received)
+      (unregister-handler :test-event id))))
+
+;; App Tests
+(define-test app-creation
+  :parent dsl-tests
+  (let ((app (make-app :render (lambda (state) 
+                                 (declare (ignore state))
+                                 (make-vnode :type 'panel)))))
+    (true (typep app 'app))
+    (true (functionp (app-render-fn app)))))
+
+;; Button Widget Tests
+(define-test button-widget-creation
+  :parent dsl-tests
+  (let ((btn (make-instance 'button-widget :label "Click Me")))
+    (is string= "Click Me" (button-label btn))))
+
+;;; ============================================================
 ;;; Run Tests
 ;;; ============================================================
 

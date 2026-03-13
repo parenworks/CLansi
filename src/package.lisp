@@ -465,4 +465,54 @@
    #:set-region-name
    #:widget-focus-hint
    #:selection-hint
-   #:action-hint))
+   #:action-hint
+   
+   ;; Declarative UI DSL
+   #:reactive-state
+   #:make-state
+   #:state-get
+   #:state-set
+   #:state-name
+   #:state-value
+   #:state-subscribe
+   #:state-unsubscribe
+   #:state-update
+   #:with-state
+   #:component
+   #:component-props
+   #:component-children
+   #:component-render
+   #:component-mount
+   #:component-unmount
+   #:vnode
+   #:make-vnode
+   #:vnode-type
+   #:vnode-props
+   #:vnode-children
+   #:create-element
+   #:ui
+   #:ui-renderer
+   #:make-renderer
+   #:render-vnode
+   #:render-to-container
+   #:diff-vnodes
+   #:apply-patches
+   #:register-handler
+   #:unregister-handler
+   #:dispatch-event
+   #:app
+   #:make-app
+   #:app-state
+   #:app-render
+   #:app-render-fn
+   #:app-run
+   #:app-stop
+   #:defapp
+   #:define-component
+   #:text-node
+   #:button-widget
+   #:button-label
+   #:button-on-click
+   #:spacer
+   #:stack-layout
+   #:grid-layout))

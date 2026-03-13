@@ -15,11 +15,13 @@ CLansi is a terminal UI library for Common Lisp providing ANSI escape sequence h
 ```lisp
 (with-raw-mode &body body)
 ```
+
 Execute body with terminal in raw mode (no echo, no line buffering). Automatically restores terminal state on exit.
 
 ```lisp
 (with-alternate-screen &body body)
 ```
+
 Execute body using the alternate screen buffer. Restores main screen on exit.
 
 ### Cursor Control
@@ -54,6 +56,7 @@ Execute body using the alternate screen buffer. Restores main screen on exit.
 ```lisp
 (make-named-color name)
 ```
+
 Create a color from name. Supported names:
 `:black`, `:red`, `:green`, `:yellow`, `:blue`, `:magenta`, `:cyan`, `:white`,
 `:bright-black`, `:bright-red`, `:bright-green`, `:bright-yellow`,

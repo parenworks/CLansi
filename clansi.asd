@@ -17,7 +17,8 @@
                              (:file "ansi")
                              (:file "terminal")
                              (:file "widgets")
-                             (:file "screen")))))
+                             (:file "screen")
+                             (:file "dsl")))))
 
 (asdf:defsystem #:clansi/tests
   :description "Test suite for CLansi"

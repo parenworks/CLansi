@@ -5,11 +5,13 @@
 **Released:** March 2026
 
 **Tested Implementations:**
+
 - SBCL (Linux) - 60/60 tests passing
 - CCL (Linux) - 60/60 tests passing  
 - ECL (Linux) - 60/60 tests passing
 
 **Core Features:**
+
 - ANSI escape sequences (colors, cursor, screen control)
 - Raw terminal mode with proper cleanup
 - Key event parsing (arrows, function keys, mouse, UTF-8)
@@ -54,10 +56,22 @@
 
 ---
 
+## v0.5.0 - Declarative UI DSL
+
+- [x] **Reactive state** - `make-state`, `state-get`, `state-set`, `state-update`, subscriptions
+- [x] **Virtual DOM** - vnodes, `create-element`, diffing and reconciliation
+- [x] **DSL macros** - `ui`, `defapp`, `define-component`
+- [x] **Layout combinators** - `vbox`, `hbox`, `stack`, `grid`
+- [x] **Conditional rendering** - `when`, `if`, `cond` in UI trees
+- [x] **List rendering** - `for-each` for dynamic lists
+- [x] **Event system** - `register-handler`, `dispatch-event`
+- [x] **App framework** - `make-app`, `app-run`, `app-stop`
+
+---
+
 ## Future Ideas
 
 - CLIM-style presentation system (type-aware clickable objects)
-- Declarative UI DSL
 - Animation support (spinners, transitions)
 - Image rendering (sixel/kitty graphics protocol)
 - Integration with McCLIM's charming backend
@@ -74,7 +88,15 @@ Issues and PRs welcome at: https://github.com/parenworks/CLansi
 
 ## Changelog
 
+### v0.5.0 (March 2026)
+- Declarative UI DSL with reactive state
+- Virtual DOM with diffing and reconciliation
+- Layout combinators (vbox, hbox, stack, grid)
+- App framework with event system
+- 326 tests passing
+
 ### v0.4.0 (March 2026)
+
 - Documentation: API reference, tutorial, example apps
 - Performance: output buffering, optimized diff rendering
 - Accessibility: screen reader hints (OSC sequences)
@@ -82,6 +104,7 @@ Issues and PRs welcome at: https://github.com/parenworks/CLansi
 - 292 tests passing
 
 ### v0.3.0 (March 2026)
+
 - Modal dialogs (alert, confirm, input prompt)
 - Menu system (popup menus, menu bar)
 - Table widget with sorting
@@ -90,6 +113,7 @@ Issues and PRs welcome at: https://github.com/parenworks/CLansi
 - 283 tests passing
 
 ### v0.2.0 (March 2026)
+
 - Text input widget with cursor navigation
 - Progress bar (determinate and indeterminate)
 - Status bar widget
@@ -99,6 +123,7 @@ Issues and PRs welcome at: https://github.com/parenworks/CLansi
 - 154 tests passing
 
 ### v0.1.0 (March 2026)
+
 - Initial release
 - SBCL, CCL, ECL support on Linux
 - Core ANSI escape sequence library
