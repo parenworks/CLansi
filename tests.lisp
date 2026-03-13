@@ -998,6 +998,78 @@
     (false (node-expanded-p child))))
 
 ;;; ============================================================
+;;; Output Buffering Tests
+;;; ============================================================
+
+(define-test buffering-tests
+  :parent clansi-tests)
+
+(define-test output-buffer-init
+  :parent buffering-tests
+  (init-output-buffer)
+  (true *output-buffer*)
+  (setf *output-buffer* nil))
+
+(define-test output-buffer-flush
+  :parent buffering-tests
+  (let ((test-stream (make-string-output-stream)))
+    (init-output-buffer)
+    (format *output-buffer* "test output")
+    (flush-output-buffer test-stream)
+    (is string= "test output" (get-output-stream-string test-stream))
+    (setf *output-buffer* nil)))
+
+(define-test output-buffer-clear
+  :parent buffering-tests
+  (init-output-buffer)
+  (format *output-buffer* "test")
+  (clear-output-buffer)
+  ;; After clear, buffer should be empty
+  (is string= "" (get-output-stream-string *output-buffer*))
+  (setf *output-buffer* nil))
+
+;;; ============================================================
+;;; Accessibility Tests
+;;; ============================================================
+
+(define-test accessibility-tests
+  :parent clansi-tests)
+
+(define-test accessibility-toggle
+  :parent accessibility-tests
+  (false *accessibility-enabled*)
+  (enable-accessibility)
+  (true *accessibility-enabled*)
+  (disable-accessibility)
+  (false *accessibility-enabled*))
+
+(define-test set-title-test
+  :parent accessibility-tests
+  (let ((output (make-string-output-stream)))
+    (set-title "Test Title" output)
+    (let ((result (get-output-stream-string output)))
+      ;; Should contain OSC 0 sequence
+      (true (search "]0;" result)))))
+
+(define-test announce-when-disabled
+  :parent accessibility-tests
+  (let ((output (make-string-output-stream)))
+    (setf *accessibility-enabled* nil)
+    (announce "test" output)
+    ;; Should produce no output when disabled
+    (is string= "" (get-output-stream-string output))))
+
+(define-test announce-when-enabled
+  :parent accessibility-tests
+  (let ((output (make-string-output-stream)))
+    (setf *accessibility-enabled* t)
+    (announce "test message" output)
+    (let ((result (get-output-stream-string output)))
+      ;; Should contain OSC 777 sequence
+      (true (search "]777;" result)))
+    (setf *accessibility-enabled* nil)))
+
+;;; ============================================================
 ;;; Run Tests
 ;;; ============================================================
 

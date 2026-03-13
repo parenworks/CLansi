@@ -48,9 +48,9 @@
 ## v0.4.0 - Polish & Performance
 
 - [x] **Documentation** - Full API reference, tutorials, more examples
-- [ ] **Performance optimization** - Minimize escape sequence output
-- [ ] **Accessibility** - Screen reader hints where possible
-- [ ] **Windows support** - Windows Terminal / ConPTY compatibility
+- [x] **Performance optimization** - Output buffering, diff-based rendering
+- [x] **Accessibility** - Screen reader hints (announce, set-title, widget-focus-hint)
+- [x] **Windows support** - Windows Terminal / ConPTY compatibility (SBCL, CCL)
 
 ---
 
@@ -74,13 +74,19 @@ Issues and PRs welcome at: https://github.com/parenworks/CLansi
 
 ## Changelog
 
+### v0.4.0 (March 2026)
+- Documentation: API reference, tutorial, example apps
+- Performance: output buffering, optimized diff rendering
+- Accessibility: screen reader hints (OSC sequences)
+- Windows support: Windows Terminal / ConPTY (SBCL, CCL)
+- 292 tests passing
+
 ### v0.3.0 (March 2026)
 - Modal dialogs (alert, confirm, input prompt)
 - Menu system (popup menus, menu bar)
 - Table widget with sorting
 - Form system with validation
 - Tree view with expand/collapse
-- Documentation: API reference, tutorial, examples
 - 283 tests passing
 
 ### v0.2.0 (March 2026)

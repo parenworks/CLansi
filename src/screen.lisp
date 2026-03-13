@@ -184,7 +184,12 @@
     (values fg bg changed)))
 
 (defun screen-present (scr)
-  "Present back buffer to terminal, only updating changed cells."
+  "Present back buffer to terminal, only updating changed cells.
+   Optimizations:
+   - Skip unchanged cells
+   - Batch consecutive characters on same row
+   - Minimize cursor movement commands
+   - Track attribute state to avoid redundant escapes"
   (let* ((stream (screen-stream scr))
          (front (screen-front scr))
          (back (screen-back scr))
@@ -196,7 +201,8 @@
          (last-x nil)
          (last-y nil)
          (last-fg nil)
-         (last-bg nil))
+         (last-bg nil)
+         (cells-updated 0))
     ;; Hide cursor during update
     (hide-cursor stream)
     ;; Scan for differences
@@ -205,6 +211,7 @@
         (let ((front-cell (aref front-cells row col))
               (back-cell (aref back-cells row col)))
           (when (or full-redraw (not (cell-equal front-cell back-cell)))
+            (incf cells-updated)
             ;; Move cursor if not sequential
             (let ((x (1+ col))
                   (y (1+ row)))
@@ -225,8 +232,9 @@
                     (cell-bg front-cell) (cell-bg back-cell)
                     (cell-style front-cell) (cell-style back-cell))
               (setf last-x x last-y y))))))
-    ;; Reset attributes
-    (reset stream)
+    ;; Reset attributes only if we changed something
+    (when (> cells-updated 0)
+      (reset stream))
     ;; Position cursor
     (let ((cx (buffer-cursor-x back))
           (cy (buffer-cursor-y back)))
@@ -241,7 +249,9 @@
     ;; Clear full redraw flag
     (setf (screen-full-redraw scr) nil)
     ;; Flush
-    (force-output stream)))
+    (force-output stream)
+    ;; Return count of updated cells for debugging
+    cells-updated))
 
 (defun screen-force-redraw (scr)
   "Force a full redraw on next present."
@@ -282,3 +292,104 @@
 (defmacro with-screen ((&key (width 80) (height 24)) &body body)
   "Execute BODY with an initialized screen, cleaning up afterward."
   `(with-screen-macro-helper ,width ,height (lambda () ,@body)))
+
+;;; ============================================================
+;;; Output Buffering for Performance
+;;; ============================================================
+
+(defvar *output-buffer* nil
+  "String output stream for batching terminal output.")
+
+(defvar *output-buffer-string* nil
+  "The underlying string for the output buffer.")
+
+(defun init-output-buffer (&optional (initial-size 4096))
+  "Initialize the output buffer."
+  (setf *output-buffer-string* (make-array initial-size 
+                                           :element-type 'character
+                                           :fill-pointer 0
+                                           :adjustable t))
+  (setf *output-buffer* (make-string-output-stream)))
+
+(defun flush-output-buffer (&optional (stream *terminal-io*))
+  "Flush buffered output to stream."
+  (when *output-buffer*
+    (let ((str (get-output-stream-string *output-buffer*)))
+      (when (> (length str) 0)
+        (write-string str stream)
+        (force-output stream)))))
+
+(defun clear-output-buffer ()
+  "Clear the output buffer without flushing."
+  (when *output-buffer*
+    (get-output-stream-string *output-buffer*)))
+
+(defmacro with-buffered-output ((&optional (stream '*terminal-io*)) &body body)
+  "Execute BODY with output buffered, then flush to STREAM.
+   This reduces system calls by batching escape sequences."
+  (let ((old-buffer (gensym "OLD-BUFFER"))
+        (result (gensym "RESULT")))
+    `(let ((,old-buffer *output-buffer*))
+       (unwind-protect
+            (progn
+              (init-output-buffer)
+              (let ((*terminal-io* *output-buffer*)
+                    (,result nil))
+                (setf ,result (progn ,@body))
+                (flush-output-buffer ,stream)
+                ,result))
+         (setf *output-buffer* ,old-buffer)))))
+
+;;; ============================================================
+;;; Accessibility Support
+;;; ============================================================
+;;; These functions emit hints that screen readers may use.
+;;; Based on ARIA-like concepts adapted for terminal environments.
+
+(defvar *accessibility-enabled* nil
+  "When T, emit accessibility hints for screen readers.")
+
+(defun enable-accessibility ()
+  "Enable accessibility hints."
+  (setf *accessibility-enabled* t))
+
+(defun disable-accessibility ()
+  "Disable accessibility hints."
+  (setf *accessibility-enabled* nil))
+
+(defun announce (message &optional (stream *terminal-io*))
+  "Announce MESSAGE to screen reader (using bell + message pattern).
+   Some terminal screen readers detect text following bell as announcements."
+  (when *accessibility-enabled*
+    ;; Use OSC 777 for notifications (supported by some terminals)
+    (format stream "~C]777;notify;CLansi;~A~C\\" #\Escape message #\Escape)
+    (force-output stream)))
+
+(defun set-title (title &optional (stream *terminal-io*))
+  "Set terminal window title (helps screen reader users identify window)."
+  ;; OSC 0 - Set window title
+  (format stream "~C]0;~A~C\\" #\Escape title #\Escape)
+  (force-output stream))
+
+(defun set-region-name (name &optional (stream *terminal-io*))
+  "Set a named region hint (for screen reader navigation).
+   Uses OSC 1337 iTerm2-style annotation."
+  (when *accessibility-enabled*
+    (format stream "~C]1337;SetMark~C\\" #\Escape #\Escape)
+    (format stream "~C]1337;Annotation=~A~C\\" #\Escape name #\Escape)
+    (force-output stream)))
+
+(defun widget-focus-hint (widget-type widget-label &optional (stream *terminal-io*))
+  "Emit a focus hint for a widget."
+  (when *accessibility-enabled*
+    (announce (format nil "~A: ~A" widget-type widget-label) stream)))
+
+(defun selection-hint (item-text position total &optional (stream *terminal-io*))
+  "Emit a selection hint (e.g., for list navigation)."
+  (when *accessibility-enabled*
+    (announce (format nil "~A (~D of ~D)" item-text position total) stream)))
+
+(defun action-hint (action &optional (stream *terminal-io*))
+  "Emit an action hint (e.g., 'expanded', 'collapsed', 'selected')."
+  (when *accessibility-enabled*
+    (announce action stream)))

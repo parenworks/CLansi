@@ -398,6 +398,166 @@
     "Stub for unsupported implementations."
     nil))
 
+;;; ============================================================
+;;; Windows Support (Windows Terminal / ConPTY)
+;;; ============================================================
+;;; Windows Terminal and modern consoles support VT/ANSI sequences.
+;;; We enable Virtual Terminal Processing mode for compatibility.
+
+#+(and sbcl windows)
+(progn
+  ;; Windows Console API constants
+  (defconstant +std-input-handle+ -10)
+  (defconstant +std-output-handle+ -11)
+  (defconstant +enable-virtual-terminal-processing+ #x0004)
+  (defconstant +enable-virtual-terminal-input+ #x0200)
+  (defconstant +enable-echo-input+ #x0004)
+  (defconstant +enable-line-input+ #x0002)
+  (defconstant +enable-processed-input+ #x0001)
+  
+  (defvar *windows-original-input-mode* nil)
+  (defvar *windows-original-output-mode* nil)
+  
+  (sb-alien:define-alien-routine ("GetStdHandle" get-std-handle)
+      sb-alien:long
+    (handle sb-alien:long))
+  
+  (sb-alien:define-alien-routine ("GetConsoleMode" get-console-mode)
+      sb-alien:int
+    (handle sb-alien:long)
+    (mode (* sb-alien:unsigned-long)))
+  
+  (sb-alien:define-alien-routine ("SetConsoleMode" set-console-mode)
+      sb-alien:int
+    (handle sb-alien:long)
+    (mode sb-alien:unsigned-long))
+  
+  (sb-alien:define-alien-routine ("GetConsoleScreenBufferInfo" get-console-screen-buffer-info)
+      sb-alien:int
+    (handle sb-alien:long)
+    (info (* t)))
+  
+  (defun %get-termios (fd)
+    "Get console mode (Windows equivalent of termios)."
+    (declare (ignore fd))
+    (let ((handle (get-std-handle +std-input-handle+)))
+      (sb-alien:with-alien ((mode sb-alien:unsigned-long))
+        (get-console-mode handle (sb-alien:addr mode))
+        (setf *windows-original-input-mode* mode)
+        mode)))
+  
+  (defun %set-termios (fd termios)
+    "Set console mode."
+    (declare (ignore fd))
+    (let ((handle (get-std-handle +std-input-handle+)))
+      (set-console-mode handle termios)))
+  
+  (defun %make-raw-termios (termios)
+    "Create raw mode settings for Windows console."
+    (declare (ignore termios))
+    ;; Disable echo, line input, processed input; enable VT input
+    (logior +enable-virtual-terminal-input+
+            (logand (or *windows-original-input-mode* 0)
+                    (lognot (logior +enable-echo-input+
+                                   +enable-line-input+
+                                   +enable-processed-input+)))))
+  
+  (defun %stdin-fd ()
+    "Get stdin handle for Windows."
+    (get-std-handle +std-input-handle+))
+  
+  (defun %stream-fd (stream)
+    "Get handle for stream (Windows)."
+    (declare (ignore stream))
+    (get-std-handle +std-input-handle+))
+  
+  (defun %set-nonblocking (fd)
+    "Windows console is inherently non-blocking for our purposes."
+    (declare (ignore fd))
+    nil)
+  
+  (defun %read-byte-from-fd (fd)
+    "Read a byte from Windows console."
+    (declare (ignore fd))
+    ;; Use standard Lisp input for Windows
+    (let ((char (read-char-no-hang *standard-input*)))
+      (when char (char-code char))))
+  
+  (defun %query-terminal-size (fd)
+    "Query Windows console size."
+    (declare (ignore fd))
+    (let ((handle (get-std-handle +std-output-handle+)))
+      (sb-alien:with-alien ((info (sb-alien:array (sb-alien:unsigned 8) 22)))
+        (when (= 1 (get-console-screen-buffer-info handle (sb-alien:addr (sb-alien:deref info 0))))
+          (let ((cols (logior (sb-alien:deref info 14) (ash (sb-alien:deref info 15) 8)))
+                (rows (logior (sb-alien:deref info 16) (ash (sb-alien:deref info 17) 8))))
+            (when (and (> cols 0) (> rows 0))
+              (return-from %query-terminal-size (list cols rows)))))))
+    (list 80 24))
+  
+  (defun %enable-vt-mode ()
+    "Enable Virtual Terminal processing on Windows."
+    (let ((out-handle (get-std-handle +std-output-handle+)))
+      (sb-alien:with-alien ((mode sb-alien:unsigned-long))
+        (get-console-mode out-handle (sb-alien:addr mode))
+        (setf *windows-original-output-mode* mode)
+        (set-console-mode out-handle 
+                          (logior mode +enable-virtual-terminal-processing+)))))
+  
+  (defun %disable-vt-mode ()
+    "Restore original Windows console mode."
+    (when *windows-original-output-mode*
+      (let ((out-handle (get-std-handle +std-output-handle+)))
+        (set-console-mode out-handle *windows-original-output-mode*)))))
+
+#+(and ccl windows)
+(progn
+  ;; CCL Windows support using FFI
+  (defconstant +std-input-handle+ -10)
+  (defconstant +std-output-handle+ -11)
+  (defconstant +enable-virtual-terminal-processing+ #x0004)
+  (defconstant +enable-virtual-terminal-input+ #x0200)
+  (defconstant +enable-echo-input+ #x0004)
+  (defconstant +enable-line-input+ #x0002)
+  (defconstant +enable-processed-input+ #x0001)
+  
+  (defvar *windows-original-input-mode* nil)
+  (defvar *windows-original-output-mode* nil)
+  
+  (defun %get-termios (fd)
+    (declare (ignore fd))
+    (let ((handle (ccl:external-call "GetStdHandle" :signed-long +std-input-handle+ :address)))
+      (ccl:with-pointer-to-ivector (mode-ptr (make-array 1 :element-type '(unsigned-byte 32)))
+        (ccl:external-call "GetConsoleMode" :address handle :address mode-ptr :signed)
+        (setf *windows-original-input-mode* (aref mode-ptr 0))
+        (aref mode-ptr 0))))
+  
+  (defun %set-termios (fd termios)
+    (declare (ignore fd))
+    (let ((handle (ccl:external-call "GetStdHandle" :signed-long +std-input-handle+ :address)))
+      (ccl:external-call "SetConsoleMode" :address handle :unsigned-long termios :signed)))
+  
+  (defun %make-raw-termios (termios)
+    (declare (ignore termios))
+    (logior +enable-virtual-terminal-input+
+            (logand (or *windows-original-input-mode* 0)
+                    (lognot (logior +enable-echo-input+
+                                   +enable-line-input+
+                                   +enable-processed-input+)))))
+  
+  (defun %stdin-fd () 0)
+  (defun %stream-fd (stream) (declare (ignore stream)) 0)
+  (defun %set-nonblocking (fd) (declare (ignore fd)) nil)
+  
+  (defun %read-byte-from-fd (fd)
+    (declare (ignore fd))
+    (let ((char (read-char-no-hang *standard-input*)))
+      (when char (char-code char))))
+  
+  (defun %query-terminal-size (fd)
+    (declare (ignore fd))
+    (list 80 24)))
+
 #-(or sbcl ccl ecl)
 (progn
   (defun %get-termios (fd)

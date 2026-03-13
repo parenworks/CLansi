@@ -447,4 +447,22 @@
    #:tree-selected-value
    #:tree-compute-visible
    #:tree-visible-count
-   #:tree-ensure-visible))
+   #:tree-ensure-visible
+   
+   ;; Output buffering
+   #:*output-buffer*
+   #:init-output-buffer
+   #:flush-output-buffer
+   #:clear-output-buffer
+   #:with-buffered-output
+   
+   ;; Accessibility
+   #:*accessibility-enabled*
+   #:enable-accessibility
+   #:disable-accessibility
+   #:announce
+   #:set-title
+   #:set-region-name
+   #:widget-focus-hint
+   #:selection-hint
+   #:action-hint))
