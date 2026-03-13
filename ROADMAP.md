@@ -21,9 +21,9 @@
 
 ### High Priority
 
-- [ ] **Text input widget** - Single-line text field with cursor, editing
-- [ ] **Progress bar** - Determinate and indeterminate styles
-- [ ] **Status bar** - Fixed position status/info display
+- [x] **Text input widget** - Single-line text field with cursor, editing
+- [x] **Progress bar** - Determinate and indeterminate styles
+- [x] **Status bar** - Fixed position status/info display
 - [ ] **Layout system** - Horizontal/vertical splits, automatic resizing
 - [ ] **Theme support** - Configurable color schemes, light/dark modes
 

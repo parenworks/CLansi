@@ -169,6 +169,122 @@
   (is string= "hello" (pad-string "hello" 5))
   (is string= "hell" (pad-string "hello" 4)))
 
+(define-test text-alignment
+  :parent utility-tests
+  (is string= "hello     " (align-text "hello" 10 :left))
+  (is string= "     hello" (align-text "hello" 10 :right))
+  (is string= "  hello   " (align-text "hello" 10 :center)))
+
+;;; ============================================================
+;;; Text Input Tests
+;;; ============================================================
+
+(define-test text-input-tests
+  :parent widget-tests)
+
+(define-test text-input-creation
+  :parent text-input-tests
+  (let ((input (make-instance 'text-input :width 20 :placeholder "Enter text")))
+    (is string= "" (input-value input))
+    (is = 0 (input-cursor-pos input))
+    (is string= "Enter text" (input-placeholder input))))
+
+(define-test text-input-insertion
+  :parent text-input-tests
+  (let ((input (make-instance 'text-input :width 20)))
+    (input-insert-char input #\h)
+    (input-insert-char input #\i)
+    (is string= "hi" (input-value input))
+    (is = 2 (input-cursor-pos input))))
+
+(define-test text-input-deletion
+  :parent text-input-tests
+  (let ((input (make-instance 'text-input :width 20 :value "hello" :cursor-pos 5)))
+    (input-delete-char input)
+    (is string= "hell" (input-value input))
+    (is = 4 (input-cursor-pos input))
+    (input-delete-char input)
+    (is string= "hel" (input-value input))))
+
+(define-test text-input-cursor-movement
+  :parent text-input-tests
+  (let ((input (make-instance 'text-input :width 20 :value "hello" :cursor-pos 2)))
+    (input-move-cursor input 1)
+    (is = 3 (input-cursor-pos input))
+    (input-move-cursor input -1)
+    (is = 2 (input-cursor-pos input))
+    (input-move-to-start input)
+    (is = 0 (input-cursor-pos input))
+    (input-move-to-end input)
+    (is = 5 (input-cursor-pos input))))
+
+(define-test text-input-max-length
+  :parent text-input-tests
+  (let ((input (make-instance 'text-input :width 20 :max-length 3)))
+    (input-insert-char input #\a)
+    (input-insert-char input #\b)
+    (input-insert-char input #\c)
+    (input-insert-char input #\d)  ; Should be ignored
+    (is string= "abc" (input-value input))
+    (is = 3 (input-cursor-pos input))))
+
+;;; ============================================================
+;;; Progress Bar Tests
+;;; ============================================================
+
+(define-test progress-bar-tests
+  :parent widget-tests)
+
+(define-test progress-bar-creation
+  :parent progress-bar-tests
+  (let ((bar (make-instance 'progress-bar :width 20 :progress 0.5)))
+    (is = 0.5 (progress-value bar))
+    (true (progress-show-percentage-p bar))))
+
+(define-test progress-bar-set
+  :parent progress-bar-tests
+  (let ((bar (make-instance 'progress-bar :width 20)))
+    (progress-set bar 0.75)
+    (is = 0.75 (progress-value bar))
+    ;; Clamp to range
+    (progress-set bar 1.5)
+    (is = 1.0 (progress-value bar))
+    (progress-set bar -0.5)
+    (is = 0.0 (progress-value bar))))
+
+(define-test progress-bar-indeterminate
+  :parent progress-bar-tests
+  (let ((bar (make-instance 'progress-bar :width 20 :progress nil)))
+    (is eq nil (progress-value bar))
+    (is = 0 (progress-indeterminate-pos bar))
+    (progress-tick bar)
+    (is = 1 (progress-indeterminate-pos bar))))
+
+;;; ============================================================
+;;; Status Bar Tests
+;;; ============================================================
+
+(define-test status-bar-tests
+  :parent widget-tests)
+
+(define-test status-bar-creation
+  :parent status-bar-tests
+  (let ((bar (make-instance 'status-bar 
+                            :width 80
+                            :sections '(("Left" . 20) ("Center" . :flex) ("Right" . 20)))))
+    (is = 3 (length (status-sections bar)))
+    (is string= " │ " (status-separator bar))))
+
+(define-test status-bar-set-section
+  :parent status-bar-tests
+  (let ((bar (make-instance 'status-bar 
+                            :width 80
+                            :sections '(("A" . 10) ("B" . 10)))))
+    (status-set-section bar 0 "New A")
+    (is string= "New A" (car (first (status-sections bar))))
+    (status-set-section bar 1 "New B")
+    (is string= "New B" (car (second (status-sections bar))))))
+
 ;;; ============================================================
 ;;; Run Tests
 ;;; ============================================================

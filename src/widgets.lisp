@@ -224,3 +224,360 @@
         (subseq string 0 width)
         (concatenate 'string string 
                      (make-string (- width len) :initial-element pad-char)))))
+
+;;; ============================================================
+;;; Text Input Widget
+;;; ============================================================
+
+(defclass text-input (panel)
+  ((value :initarg :value :accessor input-value :initform ""
+          :documentation "Current text value")
+   (cursor-pos :initarg :cursor-pos :accessor input-cursor-pos :initform 0
+               :documentation "Cursor position within the text")
+   (scroll-offset :initarg :scroll-offset :accessor input-scroll-offset :initform 0
+                  :documentation "Horizontal scroll offset for long text")
+   (placeholder :initarg :placeholder :accessor input-placeholder :initform ""
+                :documentation "Placeholder text shown when empty")
+   (max-length :initarg :max-length :accessor input-max-length :initform nil
+               :documentation "Maximum allowed text length (nil = unlimited)")
+   (password-p :initarg :password :accessor input-password-p :initform nil
+               :documentation "If true, display asterisks instead of text"))
+  (:default-initargs :height 1 :border nil)
+  (:documentation "Single-line text input field with cursor and editing."))
+
+(defgeneric input-insert-char (input char)
+  (:documentation "Insert a character at the cursor position."))
+
+(defgeneric input-delete-char (input)
+  (:documentation "Delete character before cursor (backspace)."))
+
+(defgeneric input-delete-forward (input)
+  (:documentation "Delete character at cursor (delete key)."))
+
+(defgeneric input-move-cursor (input direction)
+  (:documentation "Move cursor left (-1) or right (+1)."))
+
+(defgeneric input-move-to-start (input)
+  (:documentation "Move cursor to start of input."))
+
+(defgeneric input-move-to-end (input)
+  (:documentation "Move cursor to end of input."))
+
+(defgeneric input-clear (input)
+  (:documentation "Clear all text from input."))
+
+(defgeneric input-handle-key (input key-event)
+  (:documentation "Handle a key event, return T if handled."))
+
+(defmethod input-insert-char ((input text-input) char)
+  "Insert CHAR at cursor position."
+  (let* ((value (input-value input))
+         (pos (input-cursor-pos input))
+         (max-len (input-max-length input)))
+    (when (or (null max-len) (< (length value) max-len))
+      (setf (input-value input)
+            (concatenate 'string
+                         (subseq value 0 pos)
+                         (string char)
+                         (subseq value pos)))
+      (incf (input-cursor-pos input))
+      (setf (panel-dirty-p input) t))))
+
+(defmethod input-delete-char ((input text-input))
+  "Delete character before cursor (backspace)."
+  (let* ((value (input-value input))
+         (pos (input-cursor-pos input)))
+    (when (> pos 0)
+      (setf (input-value input)
+            (concatenate 'string
+                         (subseq value 0 (1- pos))
+                         (subseq value pos)))
+      (decf (input-cursor-pos input))
+      (setf (panel-dirty-p input) t))))
+
+(defmethod input-delete-forward ((input text-input))
+  "Delete character at cursor (delete key)."
+  (let* ((value (input-value input))
+         (pos (input-cursor-pos input)))
+    (when (< pos (length value))
+      (setf (input-value input)
+            (concatenate 'string
+                         (subseq value 0 pos)
+                         (subseq value (1+ pos))))
+      (setf (panel-dirty-p input) t))))
+
+(defmethod input-move-cursor ((input text-input) direction)
+  "Move cursor by DIRECTION (-1 left, +1 right)."
+  (let* ((value (input-value input))
+         (pos (input-cursor-pos input))
+         (new-pos (+ pos direction)))
+    (when (and (>= new-pos 0) (<= new-pos (length value)))
+      (setf (input-cursor-pos input) new-pos)
+      (setf (panel-dirty-p input) t))))
+
+(defmethod input-move-to-start ((input text-input))
+  "Move cursor to start."
+  (setf (input-cursor-pos input) 0)
+  (setf (input-scroll-offset input) 0)
+  (setf (panel-dirty-p input) t))
+
+(defmethod input-move-to-end ((input text-input))
+  "Move cursor to end."
+  (setf (input-cursor-pos input) (length (input-value input)))
+  (setf (panel-dirty-p input) t))
+
+(defmethod input-clear ((input text-input))
+  "Clear all text."
+  (setf (input-value input) "")
+  (setf (input-cursor-pos input) 0)
+  (setf (input-scroll-offset input) 0)
+  (setf (panel-dirty-p input) t))
+
+(defmethod input-handle-key ((input text-input) key-event)
+  "Handle key event. Returns T if handled."
+  (let ((char (key-event-char key-event))
+        (code (key-event-code key-event))
+        (ctrl (key-event-ctrl-p key-event)))
+    (cond
+      ;; Printable character
+      ((and char (graphic-char-p char) (not ctrl))
+       (input-insert-char input char)
+       t)
+      ;; Backspace
+      ((eql code +key-backspace+)
+       (input-delete-char input)
+       t)
+      ;; Delete
+      ((eql code +key-delete+)
+       (input-delete-forward input)
+       t)
+      ;; Left arrow
+      ((eql code +key-left+)
+       (input-move-cursor input -1)
+       t)
+      ;; Right arrow
+      ((eql code +key-right+)
+       (input-move-cursor input 1)
+       t)
+      ;; Home
+      ((eql code +key-home+)
+       (input-move-to-start input)
+       t)
+      ;; End
+      ((eql code +key-end+)
+       (input-move-to-end input)
+       t)
+      ;; Ctrl-A (start)
+      ((and ctrl (eql char #\a))
+       (input-move-to-start input)
+       t)
+      ;; Ctrl-E (end)
+      ((and ctrl (eql char #\e))
+       (input-move-to-end input)
+       t)
+      ;; Ctrl-K (kill to end)
+      ((and ctrl (eql char #\k))
+       (setf (input-value input) (subseq (input-value input) 0 (input-cursor-pos input)))
+       (setf (panel-dirty-p input) t)
+       t)
+      ;; Ctrl-U (kill to start)
+      ((and ctrl (eql char #\u))
+       (setf (input-value input) (subseq (input-value input) (input-cursor-pos input)))
+       (setf (input-cursor-pos input) 0)
+       (setf (panel-dirty-p input) t)
+       t)
+      (t nil))))
+
+(defmethod panel-render ((input text-input))
+  "Render the text input field."
+  (when (panel-visible-p input)
+    (let* ((x (panel-x input))
+           (y (panel-y input))
+           (w (panel-width input))
+           (value (input-value input))
+           (pos (input-cursor-pos input))
+           (placeholder (input-placeholder input))
+           (password-p (input-password-p input))
+           (active (panel-active-p input)))
+      ;; Determine display text
+      (let* ((display-text (cond
+                             ((and (zerop (length value)) (not active))
+                              placeholder)
+                             (password-p
+                              (make-string (length value) :initial-element #\*))
+                             (t value)))
+             ;; Calculate scroll offset to keep cursor visible
+             (scroll (input-scroll-offset input))
+             (visible-width w))
+        ;; Adjust scroll if cursor is out of view
+        (when (< pos scroll)
+          (setf scroll pos))
+        (when (>= pos (+ scroll visible-width))
+          (setf scroll (1+ (- pos visible-width))))
+        (setf (input-scroll-offset input) scroll)
+        ;; Render
+        (cursor-to y x)
+        (when (and (zerop (length value)) (not active))
+          (dim))
+        (let* ((visible-text (if (> (length display-text) scroll)
+                                 (subseq display-text scroll)
+                                 ""))
+               (padded (pad-string visible-text visible-width)))
+          (princ padded *terminal-io*))
+        (when (and (zerop (length value)) (not active))
+          (reset))
+        ;; Position cursor if active
+        (when active
+          (cursor-to y (+ x (- pos scroll))))
+        (force-output *terminal-io*)))
+    (setf (panel-dirty-p input) nil)))
+
+;;; ============================================================
+;;; Progress Bar Widget
+;;; ============================================================
+
+(defclass progress-bar (panel)
+  ((progress :initarg :progress :accessor progress-value :initform 0
+             :documentation "Progress value 0.0 to 1.0 (or nil for indeterminate)")
+   (style :initarg :style :accessor progress-style :initform :bar
+          :documentation "Style: :bar, :blocks, :dots")
+   (fill-char :initarg :fill-char :accessor progress-fill-char :initform #\█)
+   (empty-char :initarg :empty-char :accessor progress-empty-char :initform #\░)
+   (show-percentage :initarg :show-percentage :accessor progress-show-percentage-p :initform t)
+   (indeterminate-pos :initform 0 :accessor progress-indeterminate-pos
+                      :documentation "Animation position for indeterminate mode"))
+  (:default-initargs :height 1 :border nil)
+  (:documentation "Progress bar with determinate and indeterminate modes."))
+
+(defgeneric progress-set (bar value)
+  (:documentation "Set progress value (0.0-1.0 or nil for indeterminate)."))
+
+(defgeneric progress-tick (bar)
+  (:documentation "Advance indeterminate animation by one step."))
+
+(defmethod progress-set ((bar progress-bar) value)
+  "Set progress to VALUE (0.0-1.0 or nil)."
+  (setf (progress-value bar) (when value (max 0.0 (min 1.0 value))))
+  (setf (panel-dirty-p bar) t))
+
+(defmethod progress-tick ((bar progress-bar))
+  "Advance indeterminate animation."
+  (incf (progress-indeterminate-pos bar))
+  (setf (panel-dirty-p bar) t))
+
+(defmethod panel-render ((bar progress-bar))
+  "Render the progress bar."
+  (when (panel-visible-p bar)
+    (let* ((x (panel-x bar))
+           (y (panel-y bar))
+           (w (panel-width bar))
+           (progress (progress-value bar))
+           (fill-char (progress-fill-char bar))
+           (empty-char (progress-empty-char bar))
+           (show-pct (progress-show-percentage-p bar)))
+      (cursor-to y x)
+      (if progress
+          ;; Determinate mode
+          (let* ((pct-str (if show-pct (format nil " ~3D%" (round (* progress 100))) ""))
+                 (bar-width (- w (length pct-str)))
+                 (filled (round (* progress bar-width))))
+            (loop repeat filled do (princ fill-char *terminal-io*))
+            (loop repeat (- bar-width filled) do (princ empty-char *terminal-io*))
+            (when show-pct
+              (princ pct-str *terminal-io*)))
+          ;; Indeterminate mode - bouncing block
+          (let* ((pos (progress-indeterminate-pos bar))
+                 (block-width 3)
+                 (travel-width (- w block-width))
+                 (cycle (* 2 travel-width))
+                 (phase (mod pos cycle))
+                 (block-pos (if (< phase travel-width)
+                                phase
+                                (- cycle phase))))
+            (loop repeat block-pos do (princ empty-char *terminal-io*))
+            (loop repeat block-width do (princ fill-char *terminal-io*))
+            (loop repeat (- travel-width block-pos) do (princ empty-char *terminal-io*))))
+      (force-output *terminal-io*))
+    (setf (panel-dirty-p bar) nil)))
+
+;;; ============================================================
+;;; Status Bar Widget
+;;; ============================================================
+
+(defclass status-bar (panel)
+  ((sections :initarg :sections :accessor status-sections :initform nil
+             :documentation "List of (text . width) pairs, width can be :flex")
+   (separator :initarg :separator :accessor status-separator :initform " │ ")
+   (align :initarg :align :accessor status-align :initform :left
+          :documentation "Default text alignment: :left, :center, :right")
+   (style :initarg :style :accessor status-style :initform nil
+          :documentation "Text style for the status bar"))
+  (:default-initargs :height 1 :border nil)
+  (:documentation "Fixed-position status bar with multiple sections."))
+
+(defgeneric status-set-section (bar index text)
+  (:documentation "Set the text of section at INDEX."))
+
+(defgeneric status-set-sections (bar &rest texts)
+  (:documentation "Set all section texts at once."))
+
+(defmethod status-set-section ((bar status-bar) index text)
+  "Set section INDEX to TEXT."
+  (let ((sections (status-sections bar)))
+    (when (and sections (< index (length sections)))
+      (setf (car (nth index sections)) text)
+      (setf (panel-dirty-p bar) t))))
+
+(defmethod status-set-sections ((bar status-bar) &rest texts)
+  "Set all sections from TEXTS list."
+  (let ((sections (status-sections bar)))
+    (loop for text in texts
+          for section in sections
+          do (setf (car section) text))
+    (setf (panel-dirty-p bar) t)))
+
+(defun align-text (text width align)
+  "Align TEXT within WIDTH according to ALIGN (:left, :center, :right)."
+  (let ((len (length text)))
+    (cond
+      ((>= len width) (subseq text 0 width))
+      ((eq align :right)
+       (concatenate 'string (make-string (- width len) :initial-element #\Space) text))
+      ((eq align :center)
+       (let ((left-pad (floor (- width len) 2)))
+         (concatenate 'string
+                      (make-string left-pad :initial-element #\Space)
+                      text
+                      (make-string (- width len left-pad) :initial-element #\Space))))
+      (t ; :left
+       (concatenate 'string text (make-string (- width len) :initial-element #\Space))))))
+
+(defmethod panel-render ((bar status-bar))
+  "Render the status bar."
+  (when (panel-visible-p bar)
+    (let* ((x (panel-x bar))
+           (y (panel-y bar))
+           (w (panel-width bar))
+           (sections (status-sections bar))
+           (sep (status-separator bar))
+           (sep-len (length sep))
+           (style (status-style bar))
+           (default-align (status-align bar)))
+      (cursor-to y x)
+      (when style (emit-style style *terminal-io*))
+      ;; Calculate widths
+      (let* ((fixed-width (loop for (text . width) in sections
+                                when (numberp width) sum width))
+             (flex-count (count-if (lambda (s) (eq (cdr s) :flex)) sections))
+             (sep-total (* sep-len (max 0 (1- (length sections)))))
+             (remaining (- w fixed-width sep-total))
+             (flex-width (if (> flex-count 0) (floor remaining flex-count) 0)))
+        ;; Render sections
+        (loop for (text . width) in sections
+              for first = t then nil
+              do (unless first (princ sep *terminal-io*))
+                 (let ((actual-width (if (eq width :flex) flex-width width)))
+                   (princ (align-text (or text "") actual-width default-align) *terminal-io*))))
+      (when style (reset))
+      (force-output *terminal-io*))
+    (setf (panel-dirty-p bar) nil)))

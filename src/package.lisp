@@ -170,4 +170,42 @@
    
    ;; Utilities
    #:truncate-string
-   #:pad-string))
+   #:pad-string
+   #:align-text
+   
+   ;; Text input widget
+   #:text-input
+   #:input-value
+   #:input-cursor-pos
+   #:input-scroll-offset
+   #:input-placeholder
+   #:input-max-length
+   #:input-password-p
+   #:input-insert-char
+   #:input-delete-char
+   #:input-delete-forward
+   #:input-move-cursor
+   #:input-move-to-start
+   #:input-move-to-end
+   #:input-clear
+   #:input-handle-key
+   
+   ;; Progress bar widget
+   #:progress-bar
+   #:progress-value
+   #:progress-style
+   #:progress-fill-char
+   #:progress-empty-char
+   #:progress-show-percentage-p
+   #:progress-indeterminate-pos
+   #:progress-set
+   #:progress-tick
+   
+   ;; Status bar widget
+   #:status-bar
+   #:status-sections
+   #:status-separator
+   #:status-align
+   #:status-style
+   #:status-set-section
+   #:status-set-sections))
