@@ -773,6 +773,116 @@
     (false (table-sort-ascending-p table))))
 
 ;;; ============================================================
+;;; Form Tests
+;;; ============================================================
+
+(define-test form-tests
+  :parent clansi-tests)
+
+(define-test field-creation
+  :parent form-tests
+  (let ((field (make-field "Username" :username :required t :width 25)))
+    (is string= "Username" (field-label field))
+    (is eq :username (field-key field))
+    (true (field-required-p field))
+    (true (field-widget field))))
+
+(define-test field-value-access
+  :parent form-tests
+  (let ((field (make-field "Name" :name :value "Alice")))
+    (is string= "Alice" (field-value field))
+    (setf (field-value field) "Bob")
+    (is string= "Bob" (field-value field))))
+
+(define-test field-validation-required
+  :parent form-tests
+  (let ((field (make-field "Name" :name :required t)))
+    (false (field-validate field))
+    (is string= "Required" (field-error-message field))
+    (setf (field-value field) "Alice")
+    (true (field-validate field))
+    (is eq nil (field-error-message field))))
+
+(define-test field-validation-custom
+  :parent form-tests
+  (let ((field (make-field "Age" :age 
+                           :validator (lambda (v) 
+                                        (and v (> (length v) 0)
+                                             (every #'digit-char-p v))))))
+    (setf (field-value field) "abc")
+    (false (field-validate field))
+    (is string= "Invalid" (field-error-message field))
+    (setf (field-value field) "25")
+    (true (field-validate field))))
+
+(define-test form-creation
+  :parent form-tests
+  (let* ((fields (list (make-field "Name" :name)
+                       (make-field "Email" :email)))
+         (form (make-instance 'form-widget
+                              :fields fields
+                              :x 1 :y 1 :width 60 :height 10)))
+    (is = 2 (length (form-fields form)))
+    (is = 0 (form-focused-index form))
+    (false (form-submitted-p form))
+    (false (form-cancelled-p form))))
+
+(define-test form-navigation
+  :parent form-tests
+  (let* ((fields (list (make-field "A" :a)
+                       (make-field "B" :b)
+                       (make-field "C" :c)))
+         (form (make-instance 'form-widget
+                              :fields fields
+                              :x 1 :y 1 :width 60 :height 10)))
+    (is = 0 (form-focused-index form))
+    (form-focus-next form)
+    (is = 1 (form-focused-index form))
+    (form-focus-next form)
+    (is = 2 (form-focused-index form))
+    (form-focus-next form)
+    (is = 0 (form-focused-index form))  ; Wraps
+    (form-focus-prev form)
+    (is = 2 (form-focused-index form))))
+
+(define-test form-values-retrieval
+  :parent form-tests
+  (let* ((fields (list (make-field "Name" :name :value "Alice")
+                       (make-field "City" :city :value "Boston")))
+         (form (make-instance 'form-widget
+                              :fields fields
+                              :x 1 :y 1 :width 60 :height 10)))
+    (let ((values (form-values form)))
+      (is string= "Alice" (getf values :name))
+      (is string= "Boston" (getf values :city)))))
+
+(define-test form-validation
+  :parent form-tests
+  (let* ((fields (list (make-field "Name" :name :required t)
+                       (make-field "Email" :email)))
+         (form (make-instance 'form-widget
+                              :fields fields
+                              :x 1 :y 1 :width 60 :height 10)))
+    (false (form-validate form))  ; Name is required but empty
+    (setf (field-value (first (form-fields form))) "Alice")
+    (true (form-validate form))))
+
+(define-test form-submit-cancel
+  :parent form-tests
+  (let* ((fields (list (make-field "Name" :name :value "Test")))
+         (form (make-instance 'form-widget
+                              :fields fields
+                              :x 1 :y 1 :width 60 :height 10)))
+    (form-submit form)
+    (true (form-submitted-p form)))
+  (let* ((fields (list (make-field "Name" :name)))
+         (form (make-instance 'form-widget
+                              :fields fields
+                              :x 1 :y 1 :width 60 :height 10)))
+    (form-cancel form)
+    (true (form-cancelled-p form))))
+
+;;; ============================================================
 ;;; Run Tests
 ;;; ============================================================
 

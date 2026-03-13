@@ -1806,3 +1806,283 @@
                      (reset))))
         (force-output *terminal-io*)))
     (setf (panel-dirty-p table) nil)))
+
+;;; ============================================================
+;;; Form Field
+;;; ============================================================
+
+(defclass form-field ()
+  ((label :initarg :label :accessor field-label :initform ""
+          :documentation "Label displayed before field")
+   (widget :initarg :widget :accessor field-widget :initform nil
+           :documentation "The input widget (text-input, etc.)")
+   (key :initarg :key :accessor field-key :initform nil
+        :documentation "Key for retrieving value")
+   (required-p :initarg :required :accessor field-required-p :initform nil
+               :documentation "Whether field is required")
+   (validator :initarg :validator :accessor field-validator :initform nil
+              :documentation "Function to validate field value")
+   (error-message :accessor field-error-message :initform nil
+                  :documentation "Current validation error"))
+  (:documentation "A single form field with label and widget."))
+
+(defun make-field (label key &key (type :text) required validator width value password)
+  "Create a form field with appropriate widget."
+  (let ((widget (ecase type
+                  (:text (make-instance 'text-input
+                                        :width (or width 20)
+                                        :value (or value "")
+                                        :password password)))))
+    (make-instance 'form-field
+                   :label label :key key
+                   :widget widget
+                   :required required
+                   :validator validator)))
+
+(defun field-value (field)
+  "Get the current value of a form field."
+  (let ((widget (field-widget field)))
+    (when widget
+      (input-value widget))))
+
+(defun (setf field-value) (value field)
+  "Set the value of a form field."
+  (let ((widget (field-widget field)))
+    (when widget
+      (setf (input-value widget) value))))
+
+(defun field-validate (field)
+  "Validate field, return T if valid, set error-message if not."
+  (let ((value (field-value field))
+        (required (field-required-p field))
+        (validator (field-validator field)))
+    (cond
+      ((and required (or (null value) (string= value "")))
+       (setf (field-error-message field) "Required")
+       nil)
+      ((and validator (not (funcall validator value)))
+       (setf (field-error-message field) "Invalid")
+       nil)
+      (t
+       (setf (field-error-message field) nil)
+       t))))
+
+;;; ============================================================
+;;; Form Widget
+;;; ============================================================
+
+(defclass form-widget (panel)
+  ((fields :initarg :fields :accessor form-fields :initform nil
+           :documentation "List of form-field objects")
+   (focused-index :initarg :focused :accessor form-focused-index :initform 0
+                  :documentation "Currently focused field index")
+   (label-width :initarg :label-width :accessor form-label-width :initform 15
+                :documentation "Width for labels column")
+   (submitted-p :accessor form-submitted-p :initform nil
+                :documentation "Whether form was submitted")
+   (cancelled-p :accessor form-cancelled-p :initform nil
+                :documentation "Whether form was cancelled")
+   (show-errors-p :initarg :show-errors :accessor form-show-errors-p :initform t
+                  :documentation "Whether to show validation errors"))
+  (:default-initargs :border t)
+  (:documentation "Form with multiple input fields and tab navigation."))
+
+(defgeneric form-focus-next (form)
+  (:documentation "Focus next field."))
+
+(defgeneric form-focus-prev (form)
+  (:documentation "Focus previous field."))
+
+(defgeneric form-submit (form)
+  (:documentation "Submit form if valid."))
+
+(defgeneric form-cancel (form)
+  (:documentation "Cancel form."))
+
+(defgeneric form-handle-key (form key-event)
+  (:documentation "Handle key event."))
+
+(defgeneric form-values (form)
+  (:documentation "Get all form values as plist."))
+
+(defgeneric form-validate (form)
+  (:documentation "Validate all fields."))
+
+(defmethod initialize-instance :after ((form form-widget) &key)
+  "Initialize field positions."
+  (form-update-field-positions form))
+
+(defun form-update-field-positions (form)
+  "Update widget positions based on form layout."
+  (let* ((x (panel-x form))
+         (y (panel-y form))
+         (border (if (panel-border-p form) 1 0))
+         (label-w (form-label-width form))
+         (field-x (+ x border label-w 2)))
+    (loop for field in (form-fields form)
+          for i from 0
+          for field-y = (+ y border i)
+          for widget = (field-widget field)
+          when widget
+            do (setf (panel-x widget) field-x
+                     (panel-y widget) field-y))))
+
+(defmethod form-focus-next ((form form-widget))
+  "Focus next field."
+  (let ((n (length (form-fields form))))
+    (when (> n 0)
+      ;; Deactivate current
+      (let ((current (nth (form-focused-index form) (form-fields form))))
+        (when (field-widget current)
+          (setf (panel-active-p (field-widget current)) nil)))
+      ;; Move to next
+      (setf (form-focused-index form)
+            (mod (1+ (form-focused-index form)) n))
+      ;; Activate new
+      (let ((new-field (nth (form-focused-index form) (form-fields form))))
+        (when (field-widget new-field)
+          (setf (panel-active-p (field-widget new-field)) t)))
+      (setf (panel-dirty-p form) t))))
+
+(defmethod form-focus-prev ((form form-widget))
+  "Focus previous field."
+  (let ((n (length (form-fields form))))
+    (when (> n 0)
+      ;; Deactivate current
+      (let ((current (nth (form-focused-index form) (form-fields form))))
+        (when (field-widget current)
+          (setf (panel-active-p (field-widget current)) nil)))
+      ;; Move to prev
+      (setf (form-focused-index form)
+            (mod (1- (form-focused-index form)) n))
+      ;; Activate new
+      (let ((new-field (nth (form-focused-index form) (form-fields form))))
+        (when (field-widget new-field)
+          (setf (panel-active-p (field-widget new-field)) t)))
+      (setf (panel-dirty-p form) t))))
+
+(defmethod form-validate ((form form-widget))
+  "Validate all fields. Returns T if all valid."
+  (let ((all-valid t))
+    (dolist (field (form-fields form))
+      (unless (field-validate field)
+        (setf all-valid nil)))
+    all-valid))
+
+(defmethod form-submit ((form form-widget))
+  "Submit form if valid."
+  (when (form-validate form)
+    (setf (form-submitted-p form) t)))
+
+(defmethod form-cancel ((form form-widget))
+  "Cancel form."
+  (setf (form-cancelled-p form) t))
+
+(defmethod form-values ((form form-widget))
+  "Get all form values as plist."
+  (let ((result nil))
+    (dolist (field (form-fields form))
+      (let ((key (field-key field))
+            (value (field-value field)))
+        (when key
+          (setf (getf result key) value))))
+    result))
+
+(defmethod form-handle-key ((form form-widget) key-event)
+  "Handle key event. Returns T if handled."
+  (let ((code (key-event-code key-event))
+        (focused-field (nth (form-focused-index form) (form-fields form))))
+    (cond
+      ;; Tab/Shift-Tab for navigation
+      ((eql code +key-tab+)
+       (if (key-event-shift-p key-event)
+           (form-focus-prev form)
+           (form-focus-next form))
+       t)
+      ;; Up/Down for navigation
+      ((eql code +key-up+)
+       (form-focus-prev form) t)
+      ((eql code +key-down+)
+       (form-focus-next form) t)
+      ;; Enter to submit (when on last field or with Ctrl)
+      ((eql code +key-enter+)
+       (if (or (key-event-ctrl-p key-event)
+               (= (form-focused-index form) (1- (length (form-fields form)))))
+           (progn (form-submit form) t)
+           (progn (form-focus-next form) t)))
+      ;; Escape to cancel
+      ((eql code +key-escape+)
+       (form-cancel form) t)
+      ;; Delegate to focused widget
+      (focused-field
+       (let ((widget (field-widget focused-field)))
+         (when widget
+           (input-handle-key widget key-event))))
+      (t nil))))
+
+(defmethod panel-render ((form form-widget))
+  "Render the form."
+  (when (panel-visible-p form)
+    (let* ((x (panel-x form))
+           (y (panel-y form))
+           (w (panel-width form))
+           (h (panel-height form))
+           (title (panel-title form))
+           (fields (form-fields form))
+           (focused (form-focused-index form))
+           (label-w (form-label-width form))
+           (border-p (panel-border-p form))
+           (show-errors (form-show-errors-p form)))
+      ;; Draw border
+      (when border-p
+        (draw-box x y w h)
+        (when title
+          (cursor-to y (+ x 2))
+          (format *terminal-io* " ~A " title)))
+      ;; Update field positions
+      (form-update-field-positions form)
+      ;; Draw fields
+      (let ((content-x (if border-p (1+ x) x))
+            (content-y (if border-p (1+ y) y)))
+        (loop for field in fields
+              for i from 0
+              for row = (+ content-y i)
+              for is-focused = (= i focused)
+              do ;; Draw label
+                 (cursor-to row content-x)
+                 (when is-focused (bold))
+                 (let* ((label (field-label field))
+                        (required (if (field-required-p field) "*" ""))
+                        (full-label (format nil "~A~A:" label required)))
+                   (princ (align-string full-label label-w :right) *terminal-io*))
+                 (when is-focused (reset))
+                 (write-char #\Space *terminal-io*)
+                 ;; Render widget
+                 (let ((widget (field-widget field)))
+                   (when widget
+                     (setf (panel-active-p widget) is-focused)
+                     (panel-render widget)))
+                 ;; Show error if any
+                 (when (and show-errors (field-error-message field))
+                   (write-char #\Space *terminal-io*)
+                   (fg-color (make-named-color :red))
+                   (princ (field-error-message field) *terminal-io*)
+                   (reset))))
+      (force-output *terminal-io*))
+    (setf (panel-dirty-p form) nil)))
+
+(defun make-form (fields &key title (label-width 15) x y width height)
+  "Create a form with the given fields."
+  (let* ((term-size (terminal-size))
+         (term-w (first term-size))
+         (term-h (second term-size))
+         (form-h (or height (+ (length fields) 2)))
+         (form-w (or width 60))
+         (form-x (or x (1+ (floor (- term-w form-w) 2))))
+         (form-y (or y (1+ (floor (- term-h form-h) 2)))))
+    (make-instance 'form-widget
+                   :fields fields
+                   :title title
+                   :label-width label-width
+                   :x form-x :y form-y
+                   :width form-w :height form-h)))

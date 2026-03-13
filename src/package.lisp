@@ -387,4 +387,33 @@
    #:get-cell-value
    #:format-cell-value
    #:compute-column-widths
-   #:align-string))
+   #:align-string
+   
+   ;; Form system
+   #:form-field
+   #:field-label
+   #:field-widget
+   #:field-key
+   #:field-required-p
+   #:field-validator
+   #:field-error-message
+   #:field-value
+   #:field-validate
+   #:make-field
+   
+   #:form-widget
+   #:form-fields
+   #:form-focused-index
+   #:form-label-width
+   #:form-submitted-p
+   #:form-cancelled-p
+   #:form-show-errors-p
+   #:form-focus-next
+   #:form-focus-prev
+   #:form-submit
+   #:form-cancel
+   #:form-handle-key
+   #:form-values
+   #:form-validate
+   #:form-update-field-positions
+   #:make-form))

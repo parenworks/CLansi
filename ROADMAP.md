@@ -40,7 +40,7 @@
 - [x] **Modal dialogs** - Confirmation boxes, input prompts
 - [x] **Menu system** - Dropdown/popup menus with keyboard navigation
 - [x] **Table widget** - Columnar data display with sorting
-- [ ] **Form system** - Tab-navigable input forms
+- [x] **Form system** - Tab-navigable input forms
 - [ ] **Tree view** - Expandable/collapsible hierarchical display
 
 ---
