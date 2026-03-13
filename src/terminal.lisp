@@ -406,3 +406,47 @@
       (when (> (- (get-internal-real-time) start-time) timeout-ticks)
         (return nil))
       (sleep 0.01))))
+
+;;; ============================================================
+;;; Terminal Resize Handling
+;;; ============================================================
+
+(defvar *resize-pending* nil
+  "Set to T when a resize event is pending.")
+
+(defvar *last-width* nil
+  "Last known terminal width.")
+
+(defvar *last-height* nil
+  "Last known terminal height.")
+
+(defun on-resize (width height)
+  "Default resize handler - sets pending flag and stores dimensions."
+  (setf *last-width* width
+        *last-height* height
+        *resize-pending* t))
+
+(defun enable-resize-handling (&optional (handler #'on-resize))
+  "Enable terminal resize signal handling.
+   HANDLER is called with (width height) on resize.
+   Default handler sets *resize-pending* and stores dimensions."
+  (setf *resize-hook* handler)
+  (%install-sigwinch-handler))
+
+(defun disable-resize-handling ()
+  "Disable terminal resize signal handling."
+  (%remove-sigwinch-handler)
+  (setf *resize-hook* nil))
+
+(defun check-resize ()
+  "Check if terminal was resized. Returns (values width height) or NIL.
+   Clears the pending flag."
+  (when *resize-pending*
+    (setf *resize-pending* nil)
+    (values *last-width* *last-height*)))
+
+(defun poll-resize ()
+  "Poll for resize and return key-event if resized, NIL otherwise."
+  (multiple-value-bind (width height) (check-resize)
+    (when width
+      (make-key-event :code +key-resize+ :mouse-x width :mouse-y height))))

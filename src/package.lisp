@@ -141,6 +141,16 @@
    #:*tty-path*
    #:*escape-timeout*
    
+   ;; Resize handling
+   #:*resize-hook*
+   #:*resize-pending*
+   #:*last-width*
+   #:*last-height*
+   #:enable-resize-handling
+   #:disable-resize-handling
+   #:check-resize
+   #:poll-resize
+   
    ;; Widgets - Base panel
    #:panel
    #:panel-x

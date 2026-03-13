@@ -393,6 +393,50 @@
     (is = 14 (panel-y p2))))  ; 1 + 12 + 1 (divider)
 
 ;;; ============================================================
+;;; Resize Handling Tests
+;;; ============================================================
+
+(define-test resize-tests
+  :parent clansi-tests)
+
+(define-test resize-initial-state
+  :parent resize-tests
+  ;; Initially no resize pending
+  (setf *resize-pending* nil)
+  (false *resize-pending*)
+  (is eq nil (check-resize)))
+
+(define-test resize-pending-flag
+  :parent resize-tests
+  ;; Simulate resize by calling on-resize directly
+  (setf *resize-pending* nil)
+  (clansi::on-resize 120 40)
+  (true *resize-pending*)
+  (is = 120 *last-width*)
+  (is = 40 *last-height*))
+
+(define-test resize-check-clears-flag
+  :parent resize-tests
+  ;; check-resize should clear the pending flag
+  (setf *resize-pending* nil)
+  (clansi::on-resize 100 30)
+  (true *resize-pending*)
+  (multiple-value-bind (w h) (check-resize)
+    (is = 100 w)
+    (is = 30 h))
+  (false *resize-pending*))
+
+(define-test resize-poll-returns-key-event
+  :parent resize-tests
+  ;; poll-resize should return a key-event with resize code
+  (setf *resize-pending* nil)
+  (clansi::on-resize 80 24)
+  (let ((event (poll-resize)))
+    (is eq +key-resize+ (key-event-code event))
+    (is = 80 (key-event-mouse-x event))
+    (is = 24 (key-event-mouse-y event))))
+
+;;; ============================================================
 ;;; Run Tests
 ;;; ============================================================
 

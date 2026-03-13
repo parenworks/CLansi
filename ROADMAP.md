@@ -30,7 +30,7 @@
 ### Medium Priority
 
 - [ ] **macOS support** - Test and fix Darwin-specific termios differences
-- [ ] **Signal handling** - SIGWINCH for terminal resize events
+- [x] **Signal handling** - SIGWINCH for terminal resize events
 - [ ] **Double-buffering** - Reduce flicker with screen diffing
 
 ---

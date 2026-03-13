@@ -322,6 +322,82 @@
                      }")))
       result)))
 
+;;; ============================================================
+;;; Signal Handling
+;;; ============================================================
+
+(defvar *resize-hook* nil
+  "Function to call when terminal is resized. Called with (width height).")
+
+(defvar *sigwinch-installed* nil
+  "Whether SIGWINCH handler has been installed.")
+
+#+sbcl
+(defun %install-sigwinch-handler ()
+  "Install SIGWINCH handler for SBCL."
+  (unless *sigwinch-installed*
+    (sb-sys:enable-interrupt 
+     sb-unix:sigwinch
+     (lambda (sig info context)
+       (declare (ignore sig info context))
+       (when *resize-hook*
+         (let ((size (%query-terminal-size (%stdin-fd))))
+           (funcall *resize-hook* (first size) (second size))))))
+    (setf *sigwinch-installed* t)))
+
+#+sbcl
+(defun %remove-sigwinch-handler ()
+  "Remove SIGWINCH handler for SBCL."
+  (when *sigwinch-installed*
+    (sb-sys:enable-interrupt sb-unix:sigwinch :default)
+    (setf *sigwinch-installed* nil)))
+
+#+ccl
+(defun %install-sigwinch-handler ()
+  "Install SIGWINCH handler for CCL.
+   Note: CCL doesn't have a simple signal API like SBCL.
+   This is a stub - resize detection should use polling instead."
+  (unless *sigwinch-installed*
+    ;; CCL doesn't expose a simple signal handler API
+    ;; Users should poll terminal size or use external mechanisms
+    (setf *sigwinch-installed* t)))
+
+#+ccl
+(defun %remove-sigwinch-handler ()
+  "Remove SIGWINCH handler for CCL."
+  (when *sigwinch-installed*
+    (setf *sigwinch-installed* nil)))
+
+#+ecl
+(defun %install-sigwinch-handler ()
+  "Install SIGWINCH handler for ECL."
+  (unless *sigwinch-installed*
+    (ext:set-signal-handler 
+     ext:+sigwinch+
+     (lambda (sig)
+       (declare (ignore sig))
+       (when *resize-hook*
+         (let ((size (%query-terminal-size (%stdin-fd))))
+           (funcall *resize-hook* (first size) (second size))))))
+    (setf *sigwinch-installed* t)))
+
+#+ecl
+(defun %remove-sigwinch-handler ()
+  "Remove SIGWINCH handler for ECL."
+  (when *sigwinch-installed*
+    (ext:set-signal-handler ext:+sigwinch+ :default)
+    (setf *sigwinch-installed* nil)))
+
+#-(or sbcl ccl ecl)
+(progn
+  (defun %install-sigwinch-handler ()
+    "Stub for unsupported implementations."
+    (warn "SIGWINCH handling not implemented for this Lisp"))
+  
+  (defun %remove-sigwinch-handler ()
+    "Stub for unsupported implementations."
+    nil))
+
 #-(or sbcl ccl ecl)
 (progn
   (defun %get-termios (fd)
