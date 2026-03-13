@@ -208,4 +208,33 @@
    #:status-align
    #:status-style
    #:status-set-section
-   #:status-set-sections))
+   #:status-set-sections
+   
+   ;; Layout system
+   #:layout
+   #:layout-x
+   #:layout-y
+   #:layout-width
+   #:layout-height
+   #:layout-children
+   #:layout-direction
+   #:layout-sizes
+   #:layout-gap
+   #:layout-visible-p
+   #:layout-add-child
+   #:layout-remove-child
+   #:layout-resize
+   #:layout-recalculate
+   #:layout-render
+   
+   ;; Split pane
+   #:split-pane
+   #:split-first
+   #:split-second
+   #:split-pos
+   #:split-min-size
+   #:split-resizable-p
+   #:split-show-divider-p
+   #:split-divider-char
+   #:split-set-children
+   #:split-adjust))

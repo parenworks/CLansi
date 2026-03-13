@@ -286,6 +286,113 @@
     (is string= "New B" (car (second (status-sections bar))))))
 
 ;;; ============================================================
+;;; Layout Tests
+;;; ============================================================
+
+(define-test layout-tests
+  :parent widget-tests)
+
+(define-test layout-creation
+  :parent layout-tests
+  (let ((layout (make-instance 'layout :x 1 :y 1 :width 80 :height 24)))
+    (is = 1 (layout-x layout))
+    (is = 1 (layout-y layout))
+    (is = 80 (layout-width layout))
+    (is = 24 (layout-height layout))
+    (is eq :horizontal (layout-direction layout))))
+
+(define-test layout-horizontal-children
+  :parent layout-tests
+  (let ((layout (make-instance 'layout :x 1 :y 1 :width 80 :height 24 :direction :horizontal))
+        (p1 (make-instance 'panel))
+        (p2 (make-instance 'panel)))
+    (layout-add-child layout p1 30)
+    (layout-add-child layout p2 :flex)
+    ;; p1 should be at x=1, width=30
+    (is = 1 (panel-x p1))
+    (is = 30 (panel-width p1))
+    (is = 24 (panel-height p1))
+    ;; p2 should be at x=31, width=50 (80-30)
+    (is = 31 (panel-x p2))
+    (is = 50 (panel-width p2))))
+
+(define-test layout-vertical-children
+  :parent layout-tests
+  (let ((layout (make-instance 'layout :x 1 :y 1 :width 80 :height 24 :direction :vertical))
+        (p1 (make-instance 'panel))
+        (p2 (make-instance 'panel)))
+    (layout-add-child layout p1 10)
+    (layout-add-child layout p2 :flex)
+    ;; p1 should be at y=1, height=10
+    (is = 1 (panel-y p1))
+    (is = 10 (panel-height p1))
+    (is = 80 (panel-width p1))
+    ;; p2 should be at y=11, height=14 (24-10)
+    (is = 11 (panel-y p2))
+    (is = 14 (panel-height p2))))
+
+(define-test layout-resize
+  :parent layout-tests
+  (let ((layout (make-instance 'layout :x 1 :y 1 :width 80 :height 24 :direction :horizontal))
+        (p1 (make-instance 'panel))
+        (p2 (make-instance 'panel)))
+    (layout-add-child layout p1 :flex)
+    (layout-add-child layout p2 :flex)
+    ;; Initially each gets 40
+    (is = 40 (panel-width p1))
+    (is = 40 (panel-width p2))
+    ;; Resize to 100
+    (layout-resize layout 100 24)
+    (is = 50 (panel-width p1))
+    (is = 50 (panel-width p2))))
+
+;;; ============================================================
+;;; Split Pane Tests
+;;; ============================================================
+
+(define-test split-pane-tests
+  :parent widget-tests)
+
+(define-test split-pane-creation
+  :parent split-pane-tests
+  (let* ((p1 (make-instance 'panel))
+         (p2 (make-instance 'panel))
+         (split (make-instance 'split-pane 
+                               :x 1 :y 1 :width 81 :height 24
+                               :first p1 :second p2 :split-pos 0.5)))
+    ;; With divider, 80 available, split at 50%
+    (is = 40 (panel-width p1))
+    (is = 40 (panel-width p2))
+    (is = 1 (panel-x p1))
+    (is = 42 (panel-x p2))))  ; 1 + 40 + 1 (divider)
+
+(define-test split-pane-adjust
+  :parent split-pane-tests
+  (let* ((p1 (make-instance 'panel))
+         (p2 (make-instance 'panel))
+         (split (make-instance 'split-pane 
+                               :x 1 :y 1 :width 81 :height 24
+                               :first p1 :second p2 :split-pos 0.5)))
+    ;; Adjust by +10
+    (split-adjust split 10)
+    (is = 50 (panel-width p1))
+    (is = 30 (panel-width p2))))
+
+(define-test split-pane-vertical
+  :parent split-pane-tests
+  (let* ((p1 (make-instance 'panel))
+         (p2 (make-instance 'panel))
+         (split (make-instance 'split-pane 
+                               :x 1 :y 1 :width 80 :height 25
+                               :direction :vertical
+                               :first p1 :second p2 :split-pos 0.5)))
+    ;; With divider, 24 available, split at 50%
+    (is = 12 (panel-height p1))
+    (is = 12 (panel-height p2))
+    (is = 1 (panel-y p1))
+    (is = 14 (panel-y p2))))  ; 1 + 12 + 1 (divider)
+
+;;; ============================================================
 ;;; Run Tests
 ;;; ============================================================
 

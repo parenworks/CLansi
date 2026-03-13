@@ -581,3 +581,234 @@
       (when style (reset))
       (force-output *terminal-io*))
     (setf (panel-dirty-p bar) nil)))
+
+;;; ============================================================
+;;; Layout System
+;;; ============================================================
+
+(defclass layout ()
+  ((x :initarg :x :accessor layout-x :initform 1)
+   (y :initarg :y :accessor layout-y :initform 1)
+   (width :initarg :width :accessor layout-width :initform 80)
+   (height :initarg :height :accessor layout-height :initform 24)
+   (children :initarg :children :accessor layout-children :initform nil
+             :documentation "List of child panels or layouts")
+   (direction :initarg :direction :accessor layout-direction :initform :horizontal
+              :documentation "Split direction: :horizontal or :vertical")
+   (sizes :initarg :sizes :accessor layout-sizes :initform nil
+          :documentation "List of sizes for children - numbers (fixed) or :flex")
+   (gap :initarg :gap :accessor layout-gap :initform 0
+        :documentation "Gap between children")
+   (visible-p :initarg :visible :accessor layout-visible-p :initform t))
+  (:documentation "Container that arranges children horizontally or vertically."))
+
+(defgeneric layout-add-child (layout child &optional size)
+  (:documentation "Add a child panel/layout with optional size."))
+
+(defgeneric layout-remove-child (layout child)
+  (:documentation "Remove a child from the layout."))
+
+(defgeneric layout-resize (layout width height)
+  (:documentation "Resize the layout and recalculate children."))
+
+(defgeneric layout-recalculate (layout)
+  (:documentation "Recalculate child positions and sizes."))
+
+(defgeneric layout-render (layout)
+  (:documentation "Render all children in the layout."))
+
+(defmethod layout-add-child ((layout layout) child &optional (size :flex))
+  "Add CHILD with SIZE (:flex or fixed number)."
+  (setf (layout-children layout) (append (layout-children layout) (list child)))
+  (setf (layout-sizes layout) (append (layout-sizes layout) (list size)))
+  (layout-recalculate layout))
+
+(defmethod layout-remove-child ((layout layout) child)
+  "Remove CHILD from layout."
+  (let ((pos (position child (layout-children layout))))
+    (when pos
+      (setf (layout-children layout) (remove child (layout-children layout)))
+      (setf (layout-sizes layout) 
+            (append (subseq (layout-sizes layout) 0 pos)
+                    (subseq (layout-sizes layout) (1+ pos))))
+      (layout-recalculate layout))))
+
+(defmethod layout-resize ((layout layout) width height)
+  "Resize layout to new dimensions."
+  (setf (layout-width layout) width)
+  (setf (layout-height layout) height)
+  (layout-recalculate layout))
+
+(defmethod layout-recalculate ((layout layout))
+  "Recalculate positions and sizes of all children."
+  (let* ((children (layout-children layout))
+         (sizes (layout-sizes layout))
+         (direction (layout-direction layout))
+         (gap (layout-gap layout))
+         (horizontal-p (eq direction :horizontal))
+         (total-size (if horizontal-p 
+                         (layout-width layout) 
+                         (layout-height layout)))
+         (cross-size (if horizontal-p 
+                         (layout-height layout) 
+                         (layout-width layout)))
+         (num-children (length children))
+         (total-gap (* gap (max 0 (1- num-children))))
+         (available (- total-size total-gap))
+         ;; Calculate fixed and flex sizes
+         (fixed-total (loop for size in sizes
+                            when (numberp size) sum size))
+         (flex-count (count :flex sizes))
+         (flex-size (if (> flex-count 0)
+                        (floor (- available fixed-total) flex-count)
+                        0))
+         (current-pos (if horizontal-p 
+                          (layout-x layout) 
+                          (layout-y layout))))
+    ;; Position each child
+    (loop for child in children
+          for size in sizes
+          for actual-size = (if (eq size :flex) flex-size size)
+          do (if horizontal-p
+                 (progn
+                   (setf (panel-x child) current-pos)
+                   (setf (panel-y child) (layout-y layout))
+                   (setf (panel-width child) actual-size)
+                   (setf (panel-height child) cross-size))
+                 (progn
+                   (setf (panel-x child) (layout-x layout))
+                   (setf (panel-y child) current-pos)
+                   (setf (panel-width child) cross-size)
+                   (setf (panel-height child) actual-size)))
+             ;; Recursively recalculate nested layouts
+             (when (typep child 'layout)
+               (layout-recalculate child))
+             (incf current-pos (+ actual-size gap)))))
+
+(defmethod layout-render ((layout layout))
+  "Render all visible children."
+  (when (layout-visible-p layout)
+    (dolist (child (layout-children layout))
+      (cond
+        ((typep child 'layout)
+         (layout-render child))
+        ((typep child 'panel)
+         (when (panel-visible-p child)
+           (panel-render child)))))))
+
+;;; ============================================================
+;;; Split Pane Widget
+;;; ============================================================
+
+(defclass split-pane (layout)
+  ((first-child :initarg :first :accessor split-first :initform nil)
+   (second-child :initarg :second :accessor split-second :initform nil)
+   (split-pos :initarg :split-pos :accessor split-pos :initform 0.5
+              :documentation "Split position as ratio (0.0-1.0) or fixed pixels")
+   (min-size :initarg :min-size :accessor split-min-size :initform 5
+             :documentation "Minimum size for either pane")
+   (resizable-p :initarg :resizable :accessor split-resizable-p :initform t)
+   (show-divider-p :initarg :show-divider :accessor split-show-divider-p :initform t)
+   (divider-char :initarg :divider-char :accessor split-divider-char :initform nil))
+  (:documentation "Two-pane split container with adjustable divider."))
+
+(defgeneric split-set-children (split first second)
+  (:documentation "Set both children of the split pane."))
+
+(defgeneric split-adjust (split delta)
+  (:documentation "Adjust split position by delta."))
+
+(defmethod initialize-instance :after ((split split-pane) &key)
+  "Initialize split pane with children."
+  ;; Add children without triggering layout-recalculate yet
+  (when (split-first split)
+    (setf (layout-children split) (list (split-first split)))
+    (setf (layout-sizes split) (list :flex)))
+  (when (split-second split)
+    (setf (layout-children split) (append (layout-children split) (list (split-second split))))
+    (setf (layout-sizes split) (append (layout-sizes split) (list :flex))))
+  ;; Now recalculate with proper split positioning
+  (split-recalculate split))
+
+(defmethod split-set-children ((split split-pane) first second)
+  "Set both children."
+  (setf (layout-children split) nil)
+  (setf (layout-sizes split) nil)
+  (setf (split-first split) first)
+  (setf (split-second split) second)
+  (when first (layout-add-child split first))
+  (when second (layout-add-child split second))
+  (split-recalculate split))
+
+(defun split-recalculate (split)
+  "Recalculate split pane sizes based on split-pos."
+  (let* ((direction (layout-direction split))
+         (horizontal-p (eq direction :horizontal))
+         (total (if horizontal-p 
+                    (layout-width split) 
+                    (layout-height split)))
+         (divider-size (if (split-show-divider-p split) 1 0))
+         (available (- total divider-size))
+         (pos (split-pos split))
+         (first-size (if (floatp pos)
+                         (floor (* available pos))
+                         pos))
+         (second-size (- available first-size))
+         (min-size (split-min-size split)))
+    ;; Enforce minimum sizes
+    (when (< first-size min-size)
+      (setf first-size min-size)
+      (setf second-size (- available first-size)))
+    (when (< second-size min-size)
+      (setf second-size min-size)
+      (setf first-size (- available second-size)))
+    ;; Update sizes list
+    (setf (layout-sizes split) (list first-size second-size))
+    (setf (layout-gap split) divider-size)
+    (layout-recalculate split)))
+
+(defmethod split-adjust ((split split-pane) delta)
+  "Adjust split position by DELTA pixels."
+  (when (split-resizable-p split)
+    (let* ((direction (layout-direction split))
+           (horizontal-p (eq direction :horizontal))
+           (total (if horizontal-p 
+                      (layout-width split) 
+                      (layout-height split)))
+           (divider-size (if (split-show-divider-p split) 1 0))
+           (available (- total divider-size))
+           (current-first (first (layout-sizes split)))
+           (new-first (+ current-first delta))
+           (min-size (split-min-size split)))
+      ;; Clamp to valid range
+      (setf new-first (max min-size (min new-first (- available min-size))))
+      ;; Update split-pos as float ratio
+      (setf (split-pos split) (float (/ new-first available)))
+      (split-recalculate split))))
+
+(defmethod layout-resize :after ((split split-pane) width height)
+  "Recalculate split after resize."
+  (declare (ignore width height))
+  (split-recalculate split))
+
+(defmethod layout-render :after ((split split-pane))
+  "Render divider line if enabled."
+  (when (and (layout-visible-p split) (split-show-divider-p split))
+    (let* ((direction (layout-direction split))
+           (horizontal-p (eq direction :horizontal))
+           (first-size (first (layout-sizes split)))
+           (divider-char (or (split-divider-char split)
+                             (if horizontal-p #\│ #\─))))
+      (if horizontal-p
+          ;; Vertical divider line
+          (let ((x (+ (layout-x split) first-size)))
+            (loop for row from (layout-y split) 
+                  below (+ (layout-y split) (layout-height split))
+                  do (cursor-to row x)
+                     (princ divider-char *terminal-io*)))
+          ;; Horizontal divider line
+          (let ((y (+ (layout-y split) first-size)))
+            (cursor-to y (layout-x split))
+            (loop repeat (layout-width split)
+                  do (princ divider-char *terminal-io*))))
+      (force-output *terminal-io*))))
