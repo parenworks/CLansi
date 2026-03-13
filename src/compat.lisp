@@ -197,7 +197,7 @@
     "Read a single byte from file descriptor."
     (let ((buf (make-array 1 :element-type '(unsigned-byte 8))))
       (ccl:with-pointer-to-ivector (ptr buf)
-        (let ((n (ccl:external-call "read" :int fd :address ptr :size-t 1 :ssize-t)))
+        (let ((n (ccl:external-call "read" :int fd :address ptr :unsigned 1 :signed)))
           (when (and n (= n 1))
             (aref buf 0))))))
   
