@@ -2086,3 +2086,293 @@
                    :label-width label-width
                    :x form-x :y form-y
                    :width form-w :height form-h)))
+
+;;; ============================================================
+;;; Tree Node
+;;; ============================================================
+
+(defclass tree-node ()
+  ((label :initarg :label :accessor node-label :initform ""
+          :documentation "Display text for node")
+   (value :initarg :value :accessor node-value :initform nil
+          :documentation "Associated value/data")
+   (children :initarg :children :accessor node-children :initform nil
+             :documentation "List of child tree-node objects")
+   (expanded-p :initarg :expanded :accessor node-expanded-p :initform nil
+               :documentation "Whether children are visible")
+   (parent :initarg :parent :accessor node-parent :initform nil
+           :documentation "Parent node reference"))
+  (:documentation "A node in a tree structure."))
+
+(defun make-node (label &key value children expanded)
+  "Create a tree node."
+  (let ((node (make-instance 'tree-node
+                             :label label :value value
+                             :children children :expanded expanded)))
+    ;; Set parent references
+    (dolist (child children)
+      (setf (node-parent child) node))
+    node))
+
+(defun node-leaf-p (node)
+  "Return T if node has no children."
+  (null (node-children node)))
+
+(defun node-depth (node)
+  "Return depth of node (0 for root)."
+  (if (node-parent node)
+      (1+ (node-depth (node-parent node)))
+      0))
+
+;;; ============================================================
+;;; Tree View Widget
+;;; ============================================================
+
+(defclass tree-view (panel)
+  ((root :initarg :root :accessor tree-root :initform nil
+         :documentation "Root tree-node (may be hidden)")
+   (show-root-p :initarg :show-root :accessor tree-show-root-p :initform t
+                :documentation "Whether to display root node")
+   (selected-node :accessor tree-selected-node :initform nil
+                  :documentation "Currently selected node")
+   (scroll-offset :initarg :scroll :accessor tree-scroll-offset :initform 0
+                  :documentation "First visible row index")
+   (indent-size :initarg :indent :accessor tree-indent-size :initform 2
+                :documentation "Spaces per indent level")
+   (visible-nodes :accessor tree-visible-nodes :initform nil
+                  :documentation "Cached list of visible nodes"))
+  (:default-initargs :border t)
+  (:documentation "Tree view with expandable/collapsible nodes."))
+
+(defgeneric tree-select-next (tree)
+  (:documentation "Select next visible node."))
+
+(defgeneric tree-select-prev (tree)
+  (:documentation "Select previous visible node."))
+
+(defgeneric tree-toggle-expand (tree)
+  (:documentation "Toggle expansion of selected node."))
+
+(defgeneric tree-expand (tree)
+  (:documentation "Expand selected node."))
+
+(defgeneric tree-collapse (tree)
+  (:documentation "Collapse selected node."))
+
+(defgeneric tree-expand-all (tree)
+  (:documentation "Expand all nodes."))
+
+(defgeneric tree-collapse-all (tree)
+  (:documentation "Collapse all nodes."))
+
+(defgeneric tree-handle-key (tree key-event)
+  (:documentation "Handle key event."))
+
+(defgeneric tree-selected-value (tree)
+  (:documentation "Get value of selected node."))
+
+(defun tree-compute-visible (tree)
+  "Compute list of visible nodes in display order."
+  (let ((result nil))
+    (labels ((collect (node depth)
+               (push (cons node depth) result)
+               (when (and (node-expanded-p node) (node-children node))
+                 (dolist (child (node-children node))
+                   (collect child (1+ depth))))))
+      (when (tree-root tree)
+        (if (tree-show-root-p tree)
+            (collect (tree-root tree) 0)
+            ;; Skip root, start with children
+            (dolist (child (node-children (tree-root tree)))
+              (collect child 0)))))
+    (setf (tree-visible-nodes tree) (nreverse result))))
+
+(defun tree-visible-count (tree)
+  "Return number of visible rows."
+  (let* ((h (panel-height tree))
+         (border (if (panel-border-p tree) 2 0)))
+    (max 1 (- h border))))
+
+(defun tree-ensure-visible (tree)
+  "Ensure selected node is visible."
+  (let* ((nodes (tree-visible-nodes tree))
+         (selected (tree-selected-node tree))
+         (idx (position selected nodes :key #'car))
+         (offset (tree-scroll-offset tree))
+         (visible (tree-visible-count tree)))
+    (when idx
+      (cond
+        ((< idx offset)
+         (setf (tree-scroll-offset tree) idx))
+        ((>= idx (+ offset visible))
+         (setf (tree-scroll-offset tree) (- idx visible -1)))))))
+
+(defmethod initialize-instance :after ((tree tree-view) &key)
+  "Initialize tree view."
+  (tree-compute-visible tree)
+  (when (and (tree-visible-nodes tree) (null (tree-selected-node tree)))
+    (setf (tree-selected-node tree) (caar (tree-visible-nodes tree)))))
+
+(defmethod tree-select-next ((tree tree-view))
+  "Select next visible node."
+  (tree-compute-visible tree)
+  (let* ((nodes (tree-visible-nodes tree))
+         (selected (tree-selected-node tree))
+         (idx (position selected nodes :key #'car)))
+    (when (and idx (< idx (1- (length nodes))))
+      (setf (tree-selected-node tree) (car (nth (1+ idx) nodes)))
+      (tree-ensure-visible tree)
+      (setf (panel-dirty-p tree) t))))
+
+(defmethod tree-select-prev ((tree tree-view))
+  "Select previous visible node."
+  (tree-compute-visible tree)
+  (let* ((nodes (tree-visible-nodes tree))
+         (selected (tree-selected-node tree))
+         (idx (position selected nodes :key #'car)))
+    (when (and idx (> idx 0))
+      (setf (tree-selected-node tree) (car (nth (1- idx) nodes)))
+      (tree-ensure-visible tree)
+      (setf (panel-dirty-p tree) t))))
+
+(defmethod tree-toggle-expand ((tree tree-view))
+  "Toggle expansion of selected node."
+  (let ((node (tree-selected-node tree)))
+    (when (and node (not (node-leaf-p node)))
+      (setf (node-expanded-p node) (not (node-expanded-p node)))
+      (tree-compute-visible tree)
+      (setf (panel-dirty-p tree) t))))
+
+(defmethod tree-expand ((tree tree-view))
+  "Expand selected node."
+  (let ((node (tree-selected-node tree)))
+    (when (and node (not (node-leaf-p node)) (not (node-expanded-p node)))
+      (setf (node-expanded-p node) t)
+      (tree-compute-visible tree)
+      (setf (panel-dirty-p tree) t))))
+
+(defmethod tree-collapse ((tree tree-view))
+  "Collapse selected node or go to parent."
+  (let ((node (tree-selected-node tree)))
+    (when node
+      (cond
+        ((and (not (node-leaf-p node)) (node-expanded-p node))
+         ;; Collapse this node
+         (setf (node-expanded-p node) nil)
+         (tree-compute-visible tree)
+         (setf (panel-dirty-p tree) t))
+        ((node-parent node)
+         ;; Go to parent
+         (setf (tree-selected-node tree) (node-parent node))
+         (tree-ensure-visible tree)
+         (setf (panel-dirty-p tree) t))))))
+
+(defun tree-expand-node-recursive (node)
+  "Expand node and all descendants."
+  (unless (node-leaf-p node)
+    (setf (node-expanded-p node) t)
+    (dolist (child (node-children node))
+      (tree-expand-node-recursive child))))
+
+(defun tree-collapse-node-recursive (node)
+  "Collapse node and all descendants."
+  (unless (node-leaf-p node)
+    (setf (node-expanded-p node) nil)
+    (dolist (child (node-children node))
+      (tree-collapse-node-recursive child))))
+
+(defmethod tree-expand-all ((tree tree-view))
+  "Expand all nodes."
+  (when (tree-root tree)
+    (tree-expand-node-recursive (tree-root tree))
+    (tree-compute-visible tree)
+    (setf (panel-dirty-p tree) t)))
+
+(defmethod tree-collapse-all ((tree tree-view))
+  "Collapse all nodes."
+  (when (tree-root tree)
+    (tree-collapse-node-recursive (tree-root tree))
+    (tree-compute-visible tree)
+    (setf (panel-dirty-p tree) t)))
+
+(defmethod tree-selected-value ((tree tree-view))
+  "Get value of selected node."
+  (let ((node (tree-selected-node tree)))
+    (when node (node-value node))))
+
+(defmethod tree-handle-key ((tree tree-view) key-event)
+  "Handle key event. Returns T if handled."
+  (let ((code (key-event-code key-event))
+        (char (key-event-char key-event)))
+    (cond
+      ((or (eql code +key-up+) (eql char #\k))
+       (tree-select-prev tree) t)
+      ((or (eql code +key-down+) (eql char #\j))
+       (tree-select-next tree) t)
+      ((or (eql code +key-right+) (eql char #\l))
+       (tree-expand tree) t)
+      ((or (eql code +key-left+) (eql char #\h))
+       (tree-collapse tree) t)
+      ((or (eql code +key-enter+) (eql char #\Space))
+       (tree-toggle-expand tree) t)
+      ((eql char #\*)
+       (tree-expand-all tree) t)
+      ((eql char #\-)
+       (tree-collapse-all tree) t)
+      (t nil))))
+
+(defmethod panel-render ((tree tree-view))
+  "Render the tree view."
+  (when (panel-visible-p tree)
+    (let* ((x (panel-x tree))
+           (y (panel-y tree))
+           (w (panel-width tree))
+           (h (panel-height tree))
+           (border-p (panel-border-p tree))
+           (indent (tree-indent-size tree)))
+      ;; Recompute visible nodes
+      (tree-compute-visible tree)
+      (let ((nodes (tree-visible-nodes tree))
+            (selected (tree-selected-node tree))
+            (offset (tree-scroll-offset tree))
+            (visible (tree-visible-count tree))
+            (content-x (if border-p (1+ x) x))
+            (content-y (if border-p (1+ y) y))
+            (content-w (if border-p (- w 2) w)))
+        ;; Draw border
+        (when border-p
+          (draw-box x y w h))
+        ;; Draw nodes
+        (loop for i from offset below (min (length nodes) (+ offset visible))
+              for entry = (nth i nodes)
+              for node = (car entry)
+              for depth = (cdr entry)
+              for row = (+ content-y (- i offset))
+              for is-selected = (eq node selected)
+              do (cursor-to row content-x)
+                 (when is-selected (reverse-video))
+                 ;; Indent
+                 (loop repeat (* depth indent) do (write-char #\Space *terminal-io*))
+                 ;; Expand indicator
+                 (cond
+                   ((node-leaf-p node)
+                    (write-char #\Space *terminal-io*))
+                   ((node-expanded-p node)
+                    (write-char #\▼ *terminal-io*))
+                   (t
+                    (write-char #\▶ *terminal-io*)))
+                 (write-char #\Space *terminal-io*)
+                 ;; Label (truncate if needed)
+                 (let* ((prefix-len (+ (* depth indent) 2))
+                        (max-label (- content-w prefix-len))
+                        (label (node-label node))
+                        (display (if (> (length label) max-label)
+                                     (subseq label 0 (max 0 max-label))
+                                     label)))
+                   (princ display *terminal-io*)
+                   ;; Pad to clear line
+                   (loop repeat (- content-w prefix-len (length display))
+                         do (write-char #\Space *terminal-io*)))
+                 (when is-selected (reset)))
+        (force-output *terminal-io*)))
+    (setf (panel-dirty-p tree) nil)))

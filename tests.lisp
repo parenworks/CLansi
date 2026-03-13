@@ -883,6 +883,121 @@
     (true (form-cancelled-p form))))
 
 ;;; ============================================================
+;;; Tree View Tests
+;;; ============================================================
+
+(define-test tree-tests
+  :parent clansi-tests)
+
+(define-test node-creation
+  :parent tree-tests
+  (let ((node (make-node "Root" :value :root)))
+    (is string= "Root" (node-label node))
+    (is eq :root (node-value node))
+    (true (node-leaf-p node))
+    (false (node-expanded-p node))))
+
+(define-test node-with-children
+  :parent tree-tests
+  (let* ((child1 (make-node "Child 1"))
+         (child2 (make-node "Child 2"))
+         (parent (make-node "Parent" :children (list child1 child2))))
+    (false (node-leaf-p parent))
+    (is = 2 (length (node-children parent)))
+    (is eq parent (node-parent child1))
+    (is eq parent (node-parent child2))))
+
+(define-test node-depth
+  :parent tree-tests
+  (let* ((grandchild (make-node "Grandchild"))
+         (child (make-node "Child" :children (list grandchild)))
+         (root (make-node "Root" :children (list child))))
+    (is = 0 (node-depth root))
+    (is = 1 (node-depth child))
+    (is = 2 (node-depth grandchild))))
+
+(define-test tree-creation
+  :parent tree-tests
+  (let* ((root (make-node "Root" 
+                          :children (list (make-node "A") (make-node "B"))))
+         (tree (make-instance 'tree-view
+                              :root root
+                              :x 1 :y 1 :width 40 :height 20)))
+    (is eq root (tree-root tree))
+    (true (tree-show-root-p tree))
+    (is eq root (tree-selected-node tree))))
+
+(define-test tree-navigation
+  :parent tree-tests
+  (let* ((a (make-node "A"))
+         (b (make-node "B"))
+         (root (make-node "Root" :children (list a b) :expanded t))
+         (tree (make-instance 'tree-view
+                              :root root
+                              :x 1 :y 1 :width 40 :height 20)))
+    (is eq root (tree-selected-node tree))
+    (tree-select-next tree)
+    (is eq a (tree-selected-node tree))
+    (tree-select-next tree)
+    (is eq b (tree-selected-node tree))
+    (tree-select-prev tree)
+    (is eq a (tree-selected-node tree))))
+
+(define-test tree-expand-collapse
+  :parent tree-tests
+  (let* ((child (make-node "Child"))
+         (root (make-node "Root" :children (list child)))
+         (tree (make-instance 'tree-view
+                              :root root
+                              :x 1 :y 1 :width 40 :height 20)))
+    (false (node-expanded-p root))
+    (tree-expand tree)
+    (true (node-expanded-p root))
+    (tree-collapse tree)
+    (false (node-expanded-p root))
+    (tree-toggle-expand tree)
+    (true (node-expanded-p root))))
+
+(define-test tree-selected-value
+  :parent tree-tests
+  (let* ((root (make-node "Root" :value :root-value))
+         (tree (make-instance 'tree-view
+                              :root root
+                              :x 1 :y 1 :width 40 :height 20)))
+    (is eq :root-value (tree-selected-value tree))))
+
+(define-test tree-visible-nodes
+  :parent tree-tests
+  (let* ((a (make-node "A"))
+         (b (make-node "B"))
+         (root (make-node "Root" :children (list a b)))
+         (tree (make-instance 'tree-view
+                              :root root
+                              :x 1 :y 1 :width 40 :height 20)))
+    ;; Initially only root visible (not expanded)
+    (tree-compute-visible tree)
+    (is = 1 (length (tree-visible-nodes tree)))
+    ;; Expand root
+    (setf (node-expanded-p root) t)
+    (tree-compute-visible tree)
+    (is = 3 (length (tree-visible-nodes tree)))))
+
+(define-test tree-expand-collapse-all
+  :parent tree-tests
+  (let* ((grandchild (make-node "GC"))
+         (child (make-node "Child" :children (list grandchild)))
+         (root (make-node "Root" :children (list child)))
+         (tree (make-instance 'tree-view
+                              :root root
+                              :x 1 :y 1 :width 40 :height 20)))
+    (tree-expand-all tree)
+    (true (node-expanded-p root))
+    (true (node-expanded-p child))
+    (tree-collapse-all tree)
+    (false (node-expanded-p root))
+    (false (node-expanded-p child))))
+
+;;; ============================================================
 ;;; Run Tests
 ;;; ============================================================
 

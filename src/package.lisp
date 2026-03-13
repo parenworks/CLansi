@@ -416,4 +416,35 @@
    #:form-values
    #:form-validate
    #:form-update-field-positions
-   #:make-form))
+   #:make-form
+   
+   ;; Tree view
+   #:tree-node
+   #:node-label
+   #:node-value
+   #:node-children
+   #:node-expanded-p
+   #:node-parent
+   #:node-leaf-p
+   #:node-depth
+   #:make-node
+   
+   #:tree-view
+   #:tree-root
+   #:tree-show-root-p
+   #:tree-selected-node
+   #:tree-scroll-offset
+   #:tree-indent-size
+   #:tree-visible-nodes
+   #:tree-select-next
+   #:tree-select-prev
+   #:tree-toggle-expand
+   #:tree-expand
+   #:tree-collapse
+   #:tree-expand-all
+   #:tree-collapse-all
+   #:tree-handle-key
+   #:tree-selected-value
+   #:tree-compute-visible
+   #:tree-visible-count
+   #:tree-ensure-visible))
