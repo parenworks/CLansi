@@ -16,6 +16,7 @@
                              (:file "compat")
                              (:file "ansi")
                              (:file "terminal")
+                             (:file "utils")
                              (:file "widgets")
                              (:file "screen")
                              (:file "dsl")))))

@@ -110,6 +110,9 @@
    #:+key-page-up+
    #:+key-page-down+
    #:+key-mouse+
+   #:+key-mouse-drag+
+   #:+key-mouse-release+
+   #:key-event-mouse-button
    #:+key-resize+
    
    ;; Terminal mode
@@ -140,6 +143,15 @@
    ;; Configuration
    #:*tty-path*
    #:*escape-timeout*
+   
+   ;; System utilities - URL detection
+   #:find-urls
+   #:princ-with-urls
+   #:open-url
+   
+   ;; System utilities - Clipboard
+   #:copy-to-clipboard
+   #:paste-from-clipboard
    
    ;; Resize handling
    #:*resize-hook*

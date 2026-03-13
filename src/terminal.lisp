@@ -19,7 +19,9 @@
    (mouse-x :initarg :mouse-x :accessor key-event-mouse-x :initform nil
             :documentation "Mouse X coordinate (1-indexed)")
    (mouse-y :initarg :mouse-y :accessor key-event-mouse-y :initform nil
-            :documentation "Mouse Y coordinate (1-indexed)"))
+            :documentation "Mouse Y coordinate (1-indexed)")
+   (mouse-button :initarg :mouse-button :accessor key-event-mouse-button :initform nil
+                 :documentation "Mouse button: 0=left, 1=middle, 2=right"))
   (:documentation "Represents a keyboard or mouse input event."))
 
 (defmethod print-object ((key key-event) stream)
@@ -28,10 +30,11 @@
             (key-event-char key) (key-event-code key)
             (key-event-ctrl-p key) (key-event-alt-p key))))
 
-(defun make-key-event (&key char code ctrl-p alt-p mouse-x mouse-y)
+(defun make-key-event (&key char code ctrl-p alt-p mouse-x mouse-y mouse-button)
   "Create a key event with the specified attributes."
   (make-instance 'key-event :char char :code code :ctrl-p ctrl-p :alt-p alt-p
-                            :mouse-x mouse-x :mouse-y mouse-y))
+                            :mouse-x mouse-x :mouse-y mouse-y
+                            :mouse-button mouse-button))
 
 ;;; Special key codes
 (defconstant +key-up+ :up)
@@ -48,6 +51,8 @@
 (defconstant +key-page-up+ :page-up)
 (defconstant +key-page-down+ :page-down)
 (defconstant +key-mouse+ :mouse)
+(defconstant +key-mouse-drag+ :mouse-drag)
+(defconstant +key-mouse-release+ :mouse-release)
 (defconstant +key-resize+ :resize)
 
 ;;; ============================================================
@@ -326,16 +331,26 @@
            (cb (if (first parts) (parse-integer (first parts) :junk-allowed t) 0))
            (cx (if (second parts) (parse-integer (second parts) :junk-allowed t) 0))
            (cy (if (third parts) (parse-integer (third parts) :junk-allowed t) 0))
-           (release-p (and final (= final 109))))
-      (declare (ignore release-p))
+           (release-p (and final (= final 109)))
+           (button (logand cb 3))
+           (motion-p (logbitp 5 cb)))
       (cond
-        ;; Scroll up
+        ;; Scroll up (cb=64)
         ((= cb 64) (make-key-event :code +key-up+))
-        ;; Scroll down
+        ;; Scroll down (cb=65)
         ((= cb 65) (make-key-event :code +key-down+))
-        ;; Click
+        ;; Mouse release
+        (release-p
+         (make-key-event :code +key-mouse-release+ :mouse-x cx :mouse-y cy
+                         :mouse-button button))
+        ;; Mouse drag (motion with button held)
+        (motion-p
+         (make-key-event :code +key-mouse-drag+ :mouse-x cx :mouse-y cy
+                         :mouse-button button))
+        ;; Mouse press
         ((and final (= final 77))
-         (make-key-event :code +key-mouse+ :mouse-x cx :mouse-y cy))
+         (make-key-event :code +key-mouse+ :mouse-x cx :mouse-y cy
+                         :mouse-button button))
         (t nil)))))
 
 (defun split-string (string separator)
