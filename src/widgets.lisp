@@ -812,3 +812,301 @@
             (loop repeat (layout-width split)
                   do (princ divider-char *terminal-io*))))
       (force-output *terminal-io*))))
+
+;;; ============================================================
+;;; Modal Dialog Widget
+;;; ============================================================
+
+(defclass modal-dialog (panel)
+  ((message :initarg :message :accessor dialog-message :initform ""
+            :documentation "Main message text")
+   (buttons :initarg :buttons :accessor dialog-buttons :initform '("OK")
+            :documentation "List of button labels")
+   (selected-button :initarg :selected :accessor dialog-selected-button :initform 0
+                    :documentation "Currently selected button index")
+   (result :accessor dialog-result :initform nil
+           :documentation "Result after dialog closes")
+   (closed-p :accessor dialog-closed-p :initform nil
+             :documentation "Whether dialog has been closed")
+   (button-style :initarg :button-style :accessor dialog-button-style :initform nil)
+   (selected-style :initarg :selected-style :accessor dialog-selected-style :initform nil))
+  (:default-initargs :border t)
+  (:documentation "Modal dialog with message and buttons."))
+
+(defgeneric dialog-select-next (dialog)
+  (:documentation "Select next button."))
+
+(defgeneric dialog-select-prev (dialog)
+  (:documentation "Select previous button."))
+
+(defgeneric dialog-confirm (dialog)
+  (:documentation "Confirm selection and close dialog."))
+
+(defgeneric dialog-cancel (dialog)
+  (:documentation "Cancel dialog."))
+
+(defgeneric dialog-handle-key (dialog key-event)
+  (:documentation "Handle key event in dialog."))
+
+(defmethod dialog-select-next ((dialog modal-dialog))
+  "Select next button."
+  (let ((num-buttons (length (dialog-buttons dialog))))
+    (setf (dialog-selected-button dialog)
+          (mod (1+ (dialog-selected-button dialog)) num-buttons))
+    (setf (panel-dirty-p dialog) t)))
+
+(defmethod dialog-select-prev ((dialog modal-dialog))
+  "Select previous button."
+  (let ((num-buttons (length (dialog-buttons dialog))))
+    (setf (dialog-selected-button dialog)
+          (mod (1- (dialog-selected-button dialog)) num-buttons))
+    (setf (panel-dirty-p dialog) t)))
+
+(defmethod dialog-confirm ((dialog modal-dialog))
+  "Confirm and close with selected button."
+  (setf (dialog-result dialog) (dialog-selected-button dialog))
+  (setf (dialog-closed-p dialog) t))
+
+(defmethod dialog-cancel ((dialog modal-dialog))
+  "Cancel dialog."
+  (setf (dialog-result dialog) nil)
+  (setf (dialog-closed-p dialog) t))
+
+(defmethod dialog-handle-key ((dialog modal-dialog) key-event)
+  "Handle key event. Returns T if handled."
+  (let ((code (key-event-code key-event))
+        (char (key-event-char key-event)))
+    (cond
+      ((or (eql code +key-left+) (eql char #\h))
+       (dialog-select-prev dialog) t)
+      ((or (eql code +key-right+) (eql char #\l))
+       (dialog-select-next dialog) t)
+      ((eql code +key-tab+)
+       (dialog-select-next dialog) t)
+      ((or (eql code +key-enter+) (eql char #\Space))
+       (dialog-confirm dialog) t)
+      ((or (eql code +key-escape+) (eql char #\q))
+       (dialog-cancel dialog) t)
+      (t nil))))
+
+(defun wrap-text (text width)
+  "Wrap TEXT to fit within WIDTH, returning list of lines."
+  (let ((lines nil)
+        (current-line "")
+        (words (split-string text)))
+    (dolist (word words)
+      (if (> (+ (length current-line) 1 (length word)) width)
+          (progn
+            (when (> (length current-line) 0)
+              (push current-line lines))
+            (setf current-line word))
+          (setf current-line
+                (if (zerop (length current-line))
+                    word
+                    (concatenate 'string current-line " " word)))))
+    (when (> (length current-line) 0)
+      (push current-line lines))
+    (nreverse lines)))
+
+(defun split-string (string &optional (delimiter #\Space))
+  "Split STRING by DELIMITER."
+  (let ((result nil)
+        (start 0))
+    (loop for i from 0 to (length string)
+          do (when (or (= i (length string))
+                       (char= (char string i) delimiter))
+               (when (> i start)
+                 (push (subseq string start i) result))
+               (setf start (1+ i))))
+    (nreverse result)))
+
+(defmethod panel-render ((dialog modal-dialog))
+  "Render the modal dialog."
+  (when (panel-visible-p dialog)
+    (let* ((x (panel-x dialog))
+           (y (panel-y dialog))
+           (w (panel-width dialog))
+           (h (panel-height dialog))
+           (title (panel-title dialog))
+           (message (dialog-message dialog))
+           (buttons (dialog-buttons dialog))
+           (selected (dialog-selected-button dialog))
+           (content-w (- w 4))  ; Account for border and padding
+           (lines (wrap-text message content-w)))
+      ;; Draw border
+      (when (panel-border-p dialog)
+        (draw-box x y w h)
+        ;; Draw title if present
+        (when title
+          (cursor-to y (+ x 2))
+          (format *terminal-io* " ~A " title)))
+      ;; Draw message lines
+      (let ((msg-y (+ y 2)))
+        (dolist (line lines)
+          (cursor-to msg-y (+ x 2))
+          (princ (pad-string line content-w) *terminal-io*)
+          (incf msg-y)))
+      ;; Draw buttons at bottom
+      (let* ((button-y (- (+ y h) 2))
+             (total-btn-width (+ (reduce #'+ buttons :key #'length)
+                                 (* 4 (length buttons))  ; brackets and spaces
+                                 (* 2 (1- (length buttons)))))  ; gaps
+             (btn-x (+ x (floor (- w total-btn-width) 2))))
+        (cursor-to button-y btn-x)
+        (loop for btn in buttons
+              for i from 0
+              do (when (> i 0) (princ "  " *terminal-io*))
+                 (if (= i selected)
+                     (progn
+                       (reverse-video)
+                       (format *terminal-io* "[ ~A ]" btn)
+                       (reset))
+                     (format *terminal-io* "[ ~A ]" btn))))
+      (force-output *terminal-io*))
+    (setf (panel-dirty-p dialog) nil)))
+
+(defun draw-box (x y width height &optional (stream *terminal-io*))
+  "Draw a box at position (x, y) with given dimensions."
+  (let ((x2 (+ x width -1))
+        (y2 (+ y height -1)))
+    ;; Top border
+    (cursor-to y x stream)
+    (write-char #\┌ stream)
+    (loop repeat (- width 2) do (write-char #\─ stream))
+    (write-char #\┐ stream)
+    ;; Side borders
+    (loop for row from (1+ y) below y2
+          do (cursor-to row x stream)
+             (write-char #\│ stream)
+             (cursor-to row x2 stream)
+             (write-char #\│ stream))
+    ;; Bottom border
+    (cursor-to y2 x stream)
+    (write-char #\└ stream)
+    (loop repeat (- width 2) do (write-char #\─ stream))
+    (write-char #\┘ stream)))
+
+;;; ============================================================
+;;; Input Dialog (extends Modal)
+;;; ============================================================
+
+(defclass input-dialog (modal-dialog)
+  ((input :initarg :input :accessor dialog-input :initform nil
+          :documentation "Text input widget")
+   (prompt :initarg :prompt :accessor dialog-prompt :initform "Enter value:"
+           :documentation "Prompt text above input"))
+  (:default-initargs :buttons '("OK" "Cancel"))
+  (:documentation "Modal dialog with text input field."))
+
+(defmethod initialize-instance :after ((dialog input-dialog) &key)
+  "Create the text input widget."
+  (let* ((w (panel-width dialog))
+         (input-w (- w 6)))
+    (setf (dialog-input dialog)
+          (make-instance 'text-input
+                         :width input-w
+                         :x (+ (panel-x dialog) 3)
+                         :y (+ (panel-y dialog) 4)
+                         :active t))))
+
+(defmethod dialog-handle-key ((dialog input-dialog) key-event)
+  "Handle key event for input dialog."
+  (let ((code (key-event-code key-event))
+        (input (dialog-input dialog)))
+    (cond
+      ((eql code +key-enter+)
+       (dialog-confirm dialog) t)
+      ((eql code +key-escape+)
+       (dialog-cancel dialog) t)
+      ((eql code +key-tab+)
+       (dialog-select-next dialog) t)
+      (t
+       (input-handle-key input key-event)))))
+
+(defmethod dialog-confirm :before ((dialog input-dialog))
+  "Store input value as result."
+  (when (zerop (dialog-selected-button dialog))
+    (setf (dialog-result dialog) (input-value (dialog-input dialog)))))
+
+(defmethod panel-render ((dialog input-dialog))
+  "Render input dialog."
+  (when (panel-visible-p dialog)
+    (let* ((x (panel-x dialog))
+           (y (panel-y dialog))
+           (w (panel-width dialog))
+           (h (panel-height dialog))
+           (title (panel-title dialog))
+           (prompt (dialog-prompt dialog))
+           (buttons (dialog-buttons dialog))
+           (selected (dialog-selected-button dialog))
+           (input (dialog-input dialog)))
+      ;; Draw border
+      (draw-box x y w h)
+      ;; Draw title
+      (when title
+        (cursor-to y (+ x 2))
+        (format *terminal-io* " ~A " title))
+      ;; Draw prompt
+      (cursor-to (+ y 2) (+ x 2))
+      (princ prompt *terminal-io*)
+      ;; Update input position and render
+      (setf (panel-x input) (+ x 3)
+            (panel-y input) (+ y 3)
+            (panel-width input) (- w 6))
+      (panel-render input)
+      ;; Draw buttons
+      (let* ((button-y (- (+ y h) 2))
+             (total-btn-width (+ (reduce #'+ buttons :key #'length)
+                                 (* 4 (length buttons))
+                                 (* 2 (1- (length buttons)))))
+             (btn-x (+ x (floor (- w total-btn-width) 2))))
+        (cursor-to button-y btn-x)
+        (loop for btn in buttons
+              for i from 0
+              do (when (> i 0) (princ "  " *terminal-io*))
+                 (if (= i selected)
+                     (progn (reverse-video)
+                            (format *terminal-io* "[ ~A ]" btn)
+                            (reset))
+                     (format *terminal-io* "[ ~A ]" btn))))
+      (force-output *terminal-io*))
+    (setf (panel-dirty-p dialog) nil)))
+
+;;; ============================================================
+;;; Convenience Functions
+;;; ============================================================
+
+(defun make-alert (message &key (title "Alert") (width 40) (height 8))
+  "Create an alert dialog centered on screen."
+  (let* ((term-size (terminal-size))
+         (term-w (first term-size))
+         (term-h (second term-size))
+         (x (1+ (floor (- term-w width) 2)))
+         (y (1+ (floor (- term-h height) 2))))
+    (make-instance 'modal-dialog
+                   :x x :y y :width width :height height
+                   :title title :message message
+                   :buttons '("OK"))))
+
+(defun make-confirm (message &key (title "Confirm") (width 40) (height 8))
+  "Create a confirmation dialog centered on screen."
+  (let* ((term-size (terminal-size))
+         (term-w (first term-size))
+         (term-h (second term-size))
+         (x (1+ (floor (- term-w width) 2)))
+         (y (1+ (floor (- term-h height) 2))))
+    (make-instance 'modal-dialog
+                   :x x :y y :width width :height height
+                   :title title :message message
+                   :buttons '("Yes" "No"))))
+
+(defun make-input-prompt (prompt &key (title "Input") (width 50) (height 8))
+  "Create an input dialog centered on screen."
+  (let* ((term-size (terminal-size))
+         (term-w (first term-size))
+         (term-h (second term-size))
+         (x (1+ (floor (- term-w width) 2)))
+         (y (1+ (floor (- term-h height) 2))))
+    (make-instance 'input-dialog
+                   :x x :y y :width width :height height
+                   :title title :prompt prompt)))

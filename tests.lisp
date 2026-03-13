@@ -510,6 +510,77 @@
     (is eql #\T (cell-char (buffer-get-cell (screen-back scr) 1 1)))))
 
 ;;; ============================================================
+;;; Modal Dialog Tests
+;;; ============================================================
+
+(define-test modal-dialog-tests
+  :parent clansi-tests)
+
+(define-test dialog-creation
+  :parent modal-dialog-tests
+  (let ((dialog (make-instance 'modal-dialog
+                               :x 10 :y 5 :width 40 :height 10
+                               :message "Test message"
+                               :buttons '("OK" "Cancel"))))
+    (is string= "Test message" (dialog-message dialog))
+    (is = 2 (length (dialog-buttons dialog)))
+    (is = 0 (dialog-selected-button dialog))
+    (false (dialog-closed-p dialog))))
+
+(define-test dialog-button-navigation
+  :parent modal-dialog-tests
+  (let ((dialog (make-instance 'modal-dialog
+                               :x 10 :y 5 :width 40 :height 10
+                               :buttons '("A" "B" "C"))))
+    (is = 0 (dialog-selected-button dialog))
+    (dialog-select-next dialog)
+    (is = 1 (dialog-selected-button dialog))
+    (dialog-select-next dialog)
+    (is = 2 (dialog-selected-button dialog))
+    (dialog-select-next dialog)
+    (is = 0 (dialog-selected-button dialog))  ; Wraps around
+    (dialog-select-prev dialog)
+    (is = 2 (dialog-selected-button dialog))))
+
+(define-test dialog-confirm-cancel
+  :parent modal-dialog-tests
+  (let ((dialog (make-instance 'modal-dialog
+                               :x 10 :y 5 :width 40 :height 10
+                               :buttons '("Yes" "No"))))
+    (dialog-select-next dialog)
+    (dialog-confirm dialog)
+    (is = 1 (dialog-result dialog))
+    (true (dialog-closed-p dialog)))
+  (let ((dialog (make-instance 'modal-dialog
+                               :x 10 :y 5 :width 40 :height 10
+                               :buttons '("Yes" "No"))))
+    (dialog-cancel dialog)
+    (is eq nil (dialog-result dialog))
+    (true (dialog-closed-p dialog))))
+
+(define-test text-wrapping
+  :parent modal-dialog-tests
+  (let ((lines (wrap-text "Hello world this is a test" 10)))
+    (is = 3 (length lines))
+    (is string= "Hello" (first lines))))
+
+(define-test string-splitting
+  :parent modal-dialog-tests
+  (let ((parts (split-string "one two three")))
+    (is = 3 (length parts))
+    (is string= "one" (first parts))
+    (is string= "three" (third parts))))
+
+(define-test input-dialog-creation
+  :parent modal-dialog-tests
+  (let ((dialog (make-instance 'input-dialog
+                               :x 10 :y 5 :width 50 :height 8
+                               :prompt "Enter name:")))
+    (is string= "Enter name:" (dialog-prompt dialog))
+    (true (dialog-input dialog))
+    (is = 2 (length (dialog-buttons dialog)))))
+
+;;; ============================================================
 ;;; Run Tests
 ;;; ============================================================
 

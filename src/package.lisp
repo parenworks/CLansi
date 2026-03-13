@@ -291,4 +291,29 @@
    #:*screen*
    #:init-screen
    #:term-screen
-   #:with-screen))
+   #:with-screen
+   
+   ;; Modal dialogs
+   #:modal-dialog
+   #:dialog-message
+   #:dialog-buttons
+   #:dialog-selected-button
+   #:dialog-result
+   #:dialog-closed-p
+   #:dialog-select-next
+   #:dialog-select-prev
+   #:dialog-confirm
+   #:dialog-cancel
+   #:dialog-handle-key
+   
+   #:input-dialog
+   #:dialog-input
+   #:dialog-prompt
+   
+   ;; Dialog utilities
+   #:draw-box
+   #:wrap-text
+   #:split-string
+   #:make-alert
+   #:make-confirm
+   #:make-input-prompt))

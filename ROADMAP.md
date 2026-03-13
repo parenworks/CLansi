@@ -37,7 +37,7 @@
 
 ## v0.3.0 - Interactive Components
 
-- [ ] **Modal dialogs** - Confirmation boxes, input prompts
+- [x] **Modal dialogs** - Confirmation boxes, input prompts
 - [ ] **Menu system** - Dropdown/popup menus with keyboard navigation
 - [ ] **Table widget** - Columnar data display with sorting
 - [ ] **Form system** - Tab-navigable input forms
