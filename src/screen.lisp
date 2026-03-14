@@ -1,7 +1,7 @@
-;;; screen.lisp - Double-buffered screen rendering for CLansi
+;;; screen.lisp - Double-buffered screen rendering for Charmed
 ;;; Maintains off-screen buffer and diffs to minimize terminal output
 
-(in-package #:clansi)
+(in-package #:charmed)
 
 ;;; ============================================================
 ;;; Cell Structure
@@ -362,7 +362,7 @@
    Some terminal screen readers detect text following bell as announcements."
   (when *accessibility-enabled*
     ;; Use OSC 777 for notifications (supported by some terminals)
-    (format stream "~C]777;notify;CLansi;~A~C\\" #\Escape message #\Escape)
+    (format stream "~C]777;notify;Charmed;~A~C\\" #\Escape message #\Escape)
     (force-output stream)))
 
 (defun set-title (title &optional (stream *terminal-io*))

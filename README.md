@@ -1,4 +1,4 @@
-# CLansi
+# Charmed
 
 A lightweight, pure-Lisp ANSI terminal control library. No ncurses dependency.
 
@@ -16,13 +16,13 @@ A lightweight, pure-Lisp ANSI terminal control library. No ncurses dependency.
 Clone to your ASDF source registry or Quicklisp local-projects:
 
 ```bash
-git clone https://github.com/parenworks/CLansi.git ~/quicklisp/local-projects/CLansi
+git clone https://github.com/parenworks/Charmed.git ~/quicklisp/local-projects/Charmed
 ```
 
 Then load:
 
 ```lisp
-(ql:quickload :clansi)
+(ql:quickload :charmed)
 ```
 
 ## Quick Start
@@ -30,7 +30,7 @@ Then load:
 ### Basic Terminal Output
 
 ```lisp
-(use-package :clansi)
+(use-package :charmed)
 
 ;; Colors
 (fg :red)
@@ -57,7 +57,7 @@ Then load:
 ### Interactive TUI
 
 ```lisp
-(use-package :clansi)
+(use-package :charmed)
 
 (defun simple-app ()
   (with-raw-terminal ()
@@ -85,7 +85,7 @@ Then load:
 ### Using Panels
 
 ```lisp
-(use-package :clansi)
+(use-package :charmed)
 
 (defun panel-demo ()
   (with-raw-terminal ()
@@ -167,8 +167,8 @@ Then load:
 
 ## Environment Variables
 
-- `CLANSI_TTY_PATH` - Override TTY device path
-- `CLANSI_ESCAPE_TIMEOUT` - Escape sequence timeout in seconds (default: 0.02)
+- `CHARMED_TTY_PATH` - Override TTY device path
+- `CHARMED_ESCAPE_TIMEOUT` - Escape sequence timeout in seconds (default: 0.02)
 
 ## Supported Terminals
 
@@ -185,7 +185,7 @@ Tested with:
 
 Please report bugs and feature requests via GitHub Issues:
 
-https://github.com/parenworks/CLansi/issues
+https://github.com/parenworks/Charmed/issues
 
 Pull requests are welcome!
 

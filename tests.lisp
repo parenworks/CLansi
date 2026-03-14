@@ -1,19 +1,19 @@
-;;; tests.lisp - Test suite for CLansi
+;;; tests.lisp - Test suite for Charmed
 
-(defpackage #:clansi/tests
-  (:use #:cl #:clansi #:parachute)
+(defpackage #:charmed/tests
+  (:use #:cl #:charmed #:parachute)
   (:export #:run-tests))
 
-(in-package #:clansi/tests)
+(in-package #:charmed/tests)
 
-(define-test clansi-tests)
+(define-test charmed-tests)
 
 ;;; ============================================================
 ;;; Color Tests
 ;;; ============================================================
 
 (define-test color-tests
-  :parent clansi-tests)
+  :parent charmed-tests)
 
 (define-test indexed-color-creation
   :parent color-tests
@@ -51,7 +51,7 @@
 ;;; ============================================================
 
 (define-test style-tests
-  :parent clansi-tests)
+  :parent charmed-tests)
 
 (define-test style-creation
   :parent style-tests
@@ -67,7 +67,7 @@
 ;;; ============================================================
 
 (define-test key-event-tests
-  :parent clansi-tests)
+  :parent charmed-tests)
 
 (define-test key-event-creation
   :parent key-event-tests
@@ -99,7 +99,7 @@
 ;;; ============================================================
 
 (define-test widget-tests
-  :parent clansi-tests)
+  :parent charmed-tests)
 
 (define-test panel-creation
   :parent widget-tests
@@ -155,7 +155,7 @@
 ;;; ============================================================
 
 (define-test utility-tests
-  :parent clansi-tests)
+  :parent charmed-tests)
 
 (define-test string-truncation
   :parent utility-tests
@@ -397,7 +397,7 @@
 ;;; ============================================================
 
 (define-test resize-tests
-  :parent clansi-tests)
+  :parent charmed-tests)
 
 (define-test resize-initial-state
   :parent resize-tests
@@ -410,7 +410,7 @@
   :parent resize-tests
   ;; Simulate resize by calling on-resize directly
   (setf *resize-pending* nil)
-  (clansi::on-resize 120 40)
+  (charmed::on-resize 120 40)
   (true *resize-pending*)
   (is = 120 *last-width*)
   (is = 40 *last-height*))
@@ -419,7 +419,7 @@
   :parent resize-tests
   ;; check-resize should clear the pending flag
   (setf *resize-pending* nil)
-  (clansi::on-resize 100 30)
+  (charmed::on-resize 100 30)
   (true *resize-pending*)
   (multiple-value-bind (w h) (check-resize)
     (is = 100 w)
@@ -430,7 +430,7 @@
   :parent resize-tests
   ;; poll-resize should return a key-event with resize code
   (setf *resize-pending* nil)
-  (clansi::on-resize 80 24)
+  (charmed::on-resize 80 24)
   (let ((event (poll-resize)))
     (is eq +key-resize+ (key-event-code event))
     (is = 80 (key-event-mouse-x event))
@@ -441,7 +441,7 @@
 ;;; ============================================================
 
 (define-test screen-buffer-tests
-  :parent clansi-tests)
+  :parent charmed-tests)
 
 (define-test cell-creation
   :parent screen-buffer-tests
@@ -514,7 +514,7 @@
 ;;; ============================================================
 
 (define-test modal-dialog-tests
-  :parent clansi-tests)
+  :parent charmed-tests)
 
 (define-test dialog-creation
   :parent modal-dialog-tests
@@ -585,7 +585,7 @@
 ;;; ============================================================
 
 (define-test menu-tests
-  :parent clansi-tests)
+  :parent charmed-tests)
 
 (define-test menu-item-creation
   :parent menu-tests
@@ -687,7 +687,7 @@
 ;;; ============================================================
 
 (define-test table-tests
-  :parent clansi-tests)
+  :parent charmed-tests)
 
 (define-test column-creation
   :parent table-tests
@@ -777,7 +777,7 @@
 ;;; ============================================================
 
 (define-test form-tests
-  :parent clansi-tests)
+  :parent charmed-tests)
 
 (define-test field-creation
   :parent form-tests
@@ -887,7 +887,7 @@
 ;;; ============================================================
 
 (define-test tree-tests
-  :parent clansi-tests)
+  :parent charmed-tests)
 
 (define-test node-creation
   :parent tree-tests
@@ -1002,7 +1002,7 @@
 ;;; ============================================================
 
 (define-test buffering-tests
-  :parent clansi-tests)
+  :parent charmed-tests)
 
 (define-test output-buffer-init
   :parent buffering-tests
@@ -1033,7 +1033,7 @@
 ;;; ============================================================
 
 (define-test accessibility-tests
-  :parent clansi-tests)
+  :parent charmed-tests)
 
 (define-test accessibility-toggle
   :parent accessibility-tests
@@ -1074,7 +1074,7 @@
 ;;; ============================================================
 
 (define-test dsl-tests
-  :parent clansi-tests)
+  :parent charmed-tests)
 
 ;; Reactive State Tests
 (define-test state-creation
@@ -1218,5 +1218,5 @@
 ;;; ============================================================
 
 (defun run-tests ()
-  "Run all CLansi tests."
-  (test 'clansi-tests))
+  "Run all Charmed tests."
+  (test 'charmed-tests))

@@ -1,4 +1,4 @@
-# CLansi Roadmap
+# Charmed Roadmap
 
 ## Current Status: v0.1.0
 
@@ -82,7 +82,7 @@
 
 See [Bug Reports & Contributing](README.md#bug-reports--contributing) in the README.
 
-Issues and PRs welcome at: https://github.com/parenworks/CLansi
+Issues and PRs welcome at: https://github.com/parenworks/Charmed
 
 ---
 

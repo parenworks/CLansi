@@ -1,25 +1,25 @@
-# CLansi Tutorial
+# Charmed Tutorial
 
-This tutorial walks you through building terminal UI applications with CLansi.
+This tutorial walks you through building terminal UI applications with Charmed.
 
 ## Installation
 
 ```lisp
 ;; Clone the repository
-;; git clone https://github.com/parenworks/CLansi.git ~/common-lisp/clansi
+;; git clone https://github.com/parenworks/Charmed.git ~/common-lisp/charmed
 
 ;; Load with Quicklisp (after adding to local-projects or central-registry)
-(ql:quickload :clansi)
+(ql:quickload :charmed)
 ```
 
 ## Hello World
 
-The simplest CLansi program:
+The simplest Charmed program:
 
 ```lisp
-(defpackage :hello-clansi
-  (:use :cl :clansi))
-(in-package :hello-clansi)
+(defpackage :hello-charmed
+  (:use :cl :charmed))
+(in-package :hello-charmed)
 
 (defun main ()
   (with-raw-mode
@@ -28,7 +28,7 @@ The simplest CLansi program:
       (cursor-to 1 1)
       (bold)
       (fg-color (make-named-color :cyan))
-      (format t "Hello, CLansi!")
+      (format t "Hello, Charmed!")
       (reset)
       (cursor-to 3 1)
       (format t "Press any key to exit...")
@@ -38,7 +38,7 @@ The simplest CLansi program:
 
 ## Reading Keyboard Input
 
-CLansi provides robust keyboard handling:
+Charmed provides robust keyboard handling:
 
 ```lisp
 (defun key-demo ()

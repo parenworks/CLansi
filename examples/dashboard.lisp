@@ -1,10 +1,10 @@
 ;;;; dashboard.lisp - Example dashboard application
 ;;;; Demonstrates combining multiple widgets
 
-(defpackage :clansi-dashboard
-  (:use :cl :clansi)
+(defpackage :charmed-dashboard
+  (:use :cl :charmed)
   (:export :run))
-(in-package :clansi-dashboard)
+(in-package :charmed-dashboard)
 
 (defun make-sample-data ()
   "Generate sample data for the dashboard."
@@ -92,4 +92,4 @@
                  ;; Refresh data
                  (setf data (make-sample-data)))))))))))
 
-;;; To run: (clansi-dashboard:run)
+;;; To run: (charmed-dashboard:run)

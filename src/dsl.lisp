@@ -1,7 +1,7 @@
-;;; dsl.lisp - Declarative UI DSL for CLansi
+;;; dsl.lisp - Declarative UI DSL for Charmed
 ;;; Provides a React-like declarative syntax for building terminal UIs
 
-(in-package #:clansi)
+(in-package #:charmed)
 
 ;;; ============================================================
 ;;; Reactive State
@@ -238,7 +238,7 @@
     (:prompt 'input-dialog)
     (:text 'text-node)
     (:button 'button-widget)
-    (t (intern (string-upcase (subseq (symbol-name type) 1)) :clansi))))
+    (t (intern (string-upcase (subseq (symbol-name type) 1)) :charmed))))
 
 (defun expand-layout-form (form)
   "Expand layout forms like (vbox ...) and (hbox ...)."

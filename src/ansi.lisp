@@ -1,7 +1,7 @@
 ;;; ansi.lisp - ANSI escape sequence library for CLansi
 ;;; Direct terminal control without ncurses dependency
 
-(in-package #:clansi)
+(in-package #:charmed)
 
 ;;; ============================================================
 ;;; Escape Character

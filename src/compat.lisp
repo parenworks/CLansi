@@ -1,7 +1,7 @@
-;;; compat.lisp - Portability layer for CLansi
+;;; compat.lisp - Portability layer for Charmed
 ;;; Abstracts implementation-specific features for SBCL, CCL, ECL, etc.
 
-(in-package #:clansi)
+(in-package #:charmed)
 
 ;;; ============================================================
 ;;; Feature Detection

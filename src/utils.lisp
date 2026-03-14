@@ -1,7 +1,7 @@
-;;; utils.lisp - System integration utilities for CLansi
+;;; utils.lisp - System integration utilities for Charmed
 ;;; URL detection, clipboard operations, and browser launching
 
-(in-package #:clansi)
+(in-package #:charmed)
 
 ;;; ============================================================
 ;;; URL Detection

@@ -1,7 +1,7 @@
-;;; widgets.lisp - Generic widget classes for CLansi
+;;; widgets.lisp - Generic widget classes for Charmed
 ;;; Base panel class and scrollable list - no app-specific widgets
 
-(in-package #:clansi)
+(in-package #:charmed)
 
 ;;; ============================================================
 ;;; Base Panel Class

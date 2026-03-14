@@ -1,7 +1,7 @@
-;;; terminal.lisp - Raw terminal input/output for CLansi
+;;; terminal.lisp - Raw terminal input/output for Charmed
 ;;; Handles raw mode, key events, and input parsing
 
-(in-package #:clansi)
+(in-package #:charmed)
 
 ;;; ============================================================
 ;;; Key Event Class
@@ -60,7 +60,7 @@
 ;;; ============================================================
 
 (defparameter *tty-path*
-  (or (getenv "CLANSI_TTY_PATH")
+  (or (getenv "CHARMED_TTY_PATH")
       (let ((candidates '("/dev/tty" "/dev/pts/0" "/dev/console")))
         (loop for path in candidates
               when (ignore-errors (probe-file path))
@@ -70,7 +70,7 @@
 
 (defparameter *escape-timeout*
   (or (ignore-errors 
-        (let ((timeout-str (getenv "CLANSI_ESCAPE_TIMEOUT")))
+        (let ((timeout-str (getenv "CHARMED_ESCAPE_TIMEOUT")))
           (when timeout-str 
             (let ((parsed (read-from-string timeout-str)))
               (if (numberp parsed) parsed nil)))))

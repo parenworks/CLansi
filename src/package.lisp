@@ -1,7 +1,7 @@
-;;; package.lisp - Package definitions for CLansi
+;;; package.lisp - Package definitions for Charmed
 ;;; A lightweight, pure-Lisp terminal UI library
 
-(defpackage #:clansi
+(defpackage #:charmed
   (:use #:cl)
   (:export
    ;; ANSI escape sequences

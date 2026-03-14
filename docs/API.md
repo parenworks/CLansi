@@ -1,8 +1,8 @@
-# CLansi API Reference
+# Charmed API Reference
 
 ## Overview
 
-CLansi is a terminal UI library for Common Lisp providing ANSI escape sequence handling, keyboard input, and a widget system for building interactive terminal applications.
+Charmed is a terminal UI library for Common Lisp providing ANSI escape sequence handling, keyboard input, and a widget system for building interactive terminal applications.
 
 **Supported Implementations:** SBCL, CCL (ECL has ASDF compatibility issues)
 

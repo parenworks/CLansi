@@ -1,10 +1,10 @@
 ;;;; data-viewer.lisp - Data table viewer example
 ;;;; Demonstrates table widget with sorting
 
-(defpackage :clansi-data-viewer
-  (:use :cl :clansi)
+(defpackage :charmed-data-viewer
+  (:use :cl :charmed)
   (:export :run))
-(in-package :clansi-data-viewer)
+(in-package :charmed-data-viewer)
 
 (defun generate-sample-data (n)
   "Generate N rows of sample data."
@@ -76,4 +76,4 @@
               (t
                (table-handle-key table key)))))))))
 
-;;; To run: (clansi-data-viewer:run)
+;;; To run: (charmed-data-viewer:run)

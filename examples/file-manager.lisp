@@ -1,10 +1,10 @@
 ;;;; file-manager.lisp - Simple file manager example
 ;;;; Demonstrates tree view and split pane
 
-(defpackage :clansi-file-manager
-  (:use :cl :clansi)
+(defpackage :charmed-file-manager
+  (:use :cl :charmed)
   (:export :run))
-(in-package :clansi-file-manager)
+(in-package :charmed-file-manager)
 
 (defun make-dir-node (path)
   "Create a tree node for a directory."
@@ -110,4 +110,4 @@
               (t
                (tree-handle-key tree key)))))))))
 
-;;; To run: (clansi-file-manager:run)
+;;; To run: (charmed-file-manager:run)
