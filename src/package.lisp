@@ -31,6 +31,8 @@
    #:emit-bg
    #:fg
    #:bg
+   #:fg-color
+   #:bg-color
    #:fg-rgb
    #:bg-rgb
    
@@ -60,6 +62,8 @@
    #:cursor-home
    #:cursor-hide
    #:cursor-show
+   #:hide-cursor
+   #:show-cursor
    #:cursor-up
    #:cursor-down
    #:cursor-forward

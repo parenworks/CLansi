@@ -157,21 +157,29 @@
 ;;; Cursor Control Functions
 ;;; ============================================================
 
-(defun cursor-to (row col)
+(defun cursor-to (row col &optional (stream *terminal-io*))
   "Move cursor to 1-indexed position (ROW, COL)."
-  (format *terminal-io* "~C[~D;~DH" *escape* (max 1 row) (max 1 col)))
+  (format stream "~C[~D;~DH" *escape* (max 1 row) (max 1 col)))
 
 (defun cursor-home ()
   "Move cursor to home position (1, 1)."
   (format *terminal-io* "~C[H" *escape*))
 
-(defun cursor-hide ()
+(defun cursor-hide (&optional (stream *terminal-io*))
   "Hide the cursor."
-  (format *terminal-io* "~C[?25l" *escape*))
+  (format stream "~C[?25l" *escape*))
 
-(defun cursor-show ()
+(defun cursor-show (&optional (stream *terminal-io*))
   "Show the cursor."
-  (format *terminal-io* "~C[?25h" *escape*))
+  (format stream "~C[?25h" *escape*))
+
+(defun hide-cursor (&optional (stream *terminal-io*))
+  "Hide the cursor (alias for cursor-hide)."
+  (cursor-hide stream))
+
+(defun show-cursor (&optional (stream *terminal-io*))
+  "Show the cursor (alias for cursor-show)."
+  (cursor-show stream))
 
 (defun cursor-up (&optional (n 1))
   "Move cursor up N rows."
@@ -205,9 +213,9 @@
   "Clear from cursor to end of line."
   (format *terminal-io* "~C[K" *escape*))
 
-(defun reset ()
+(defun reset (&optional (stream *terminal-io*))
   "Reset all text attributes to default."
-  (format *terminal-io* "~C[0m" *escape*))
+  (format stream "~C[0m" *escape*))
 
 (defun bold ()
   "Enable bold text."
@@ -280,6 +288,14 @@
   "Set background color. COLOR can be a keyword, index, or color object."
   (let ((c (lookup-color color)))
     (when c (emit-bg c *terminal-io*))))
+
+(defun fg-color (color stream)
+  "Emit foreground color to STREAM. COLOR must be a color object."
+  (when color (emit-fg color stream)))
+
+(defun bg-color (color stream)
+  "Emit background color to STREAM. COLOR must be a color object."
+  (when color (emit-bg color stream)))
 
 (defun fg-rgb (r g b)
   "Set foreground to 24-bit RGB color."
