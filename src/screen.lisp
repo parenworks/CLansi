@@ -73,14 +73,16 @@
           (buffer-cells buf) new-cells)))
 
 (defun buffer-set-cell (buf x y char &key fg bg style)
-  "Set cell at (x, y) - 1-indexed coordinates."
+  "Set cell at (x, y) - 1-indexed coordinates.
+   CHAR is always set. FG and BG are set only when non-nil (partial update).
+   STYLE is always set (nil clears any previous style)."
   (when (and (>= x 1) (<= x (buffer-width buf))
              (>= y 1) (<= y (buffer-height buf)))
     (let ((cell (aref (buffer-cells buf) (1- y) (1- x))))
-      (setf (cell-char cell) char)
+      (setf (cell-char cell) char
+            (cell-style cell) style)
       (when fg (setf (cell-fg cell) fg))
-      (when bg (setf (cell-bg cell) bg))
-      (when style (setf (cell-style cell) style)))))
+      (when bg (setf (cell-bg cell) bg)))))
 
 (defun buffer-get-cell (buf x y)
   "Get cell at (x, y) - 1-indexed coordinates."
@@ -163,25 +165,40 @@
 ;;; Differential Rendering
 ;;; ============================================================
 
-(defun emit-cell-style (stream cell last-fg last-bg)
-  "Emit style codes for cell, return new fg/bg state."
+(defun emit-unapply-style (style stream)
+  "Emit ANSI codes to turn OFF attributes that were set in STYLE.
+   Uses specific disable codes instead of full reset to preserve fg/bg state."
+  (when style
+    (when (style-bold-p style) (format stream "~C[22m" *escape*))
+    (when (style-dim-p style) (format stream "~C[22m" *escape*))
+    (when (style-italic-p style) (format stream "~C[23m" *escape*))
+    (when (style-underline-p style) (format stream "~C[24m" *escape*))
+    (when (style-inverse-p style) (format stream "~C[27m" *escape*))))
+
+(defun emit-cell-style (stream cell last-fg last-bg last-style)
+  "Emit style codes for cell, return new fg/bg/style state."
   (let ((fg (cell-fg cell))
         (bg (cell-bg cell))
         (style (cell-style cell))
         (changed nil))
+    ;; Turn off previous style attributes when transitioning styled→unstyled
+    ;; or when style changed (different style object)
+    (when (and last-style
+               (not (equalp last-style style)))
+      (emit-unapply-style last-style stream)
+      (setf changed t))
     ;; Check if we need to emit anything
     (when (or (not (equalp fg last-fg))
               (not (equalp bg last-bg))
               style)
       (setf changed t)
-      ;; Reset if we have a style or colors changed significantly
       (when style
         (emit-style style stream))
       (when (and fg (not (equalp fg last-fg)))
         (fg-color fg stream))
       (when (and bg (not (equalp bg last-bg)))
         (bg-color bg stream)))
-    (values fg bg changed)))
+    (values fg bg style changed)))
 
 (defun screen-present (scr)
   "Present back buffer to terminal, only updating changed cells.
@@ -202,6 +219,7 @@
          (last-y nil)
          (last-fg nil)
          (last-bg nil)
+         (last-style nil)
          (cells-updated 0))
     ;; Hide cursor during update
     (hide-cursor stream)
@@ -218,12 +236,17 @@
               (unless (and last-x last-y
                            (= y last-y)
                            (= x (1+ last-x)))
+                ;; Non-sequential: unapply style before jumping so it
+                ;; doesn't bleed across skipped cells
+                (when last-style
+                  (emit-unapply-style last-style stream)
+                  (setf last-style nil))
                 (cursor-to y x stream))
               ;; Emit style if needed
-              (multiple-value-bind (new-fg new-bg changed)
-                  (emit-cell-style stream back-cell last-fg last-bg)
+              (multiple-value-bind (new-fg new-bg new-style changed)
+                  (emit-cell-style stream back-cell last-fg last-bg last-style)
                 (declare (ignore changed))
-                (setf last-fg new-fg last-bg new-bg))
+                (setf last-fg new-fg last-bg new-bg last-style new-style))
               ;; Write character
               (write-char (cell-char back-cell) stream)
               ;; Copy to front buffer
