@@ -74,15 +74,15 @@
 
 (defun buffer-set-cell (buf x y char &key fg bg style)
   "Set cell at (x, y) - 1-indexed coordinates.
-   CHAR is always set. FG and BG are set only when non-nil (partial update).
-   STYLE is always set (nil clears any previous style)."
+   All fields are always set — passing NIL for FG, BG, or STYLE clears
+   any previous value on the cell."
   (when (and (>= x 1) (<= x (buffer-width buf))
              (>= y 1) (<= y (buffer-height buf)))
     (let ((cell (aref (buffer-cells buf) (1- y) (1- x))))
       (setf (cell-char cell) char
-            (cell-style cell) style)
-      (when fg (setf (cell-fg cell) fg))
-      (when bg (setf (cell-bg cell) bg)))))
+            (cell-fg cell) fg
+            (cell-bg cell) bg
+            (cell-style cell) style))))
 
 (defun buffer-get-cell (buf x y)
   "Get cell at (x, y) - 1-indexed coordinates."
@@ -167,13 +167,15 @@
 
 (defun emit-unapply-style (style stream)
   "Emit ANSI codes to turn OFF attributes that were set in STYLE.
-   Uses specific disable codes instead of full reset to preserve fg/bg state."
+   Resets fg/bg colors if the style had set them."
   (when style
     (when (style-bold-p style) (format stream "~C[22m" *escape*))
     (when (style-dim-p style) (format stream "~C[22m" *escape*))
     (when (style-italic-p style) (format stream "~C[23m" *escape*))
     (when (style-underline-p style) (format stream "~C[24m" *escape*))
-    (when (style-inverse-p style) (format stream "~C[27m" *escape*))))
+    (when (style-inverse-p style) (format stream "~C[27m" *escape*))
+    (when (style-fg style) (format stream "~C[39m" *escape*))
+    (when (style-bg style) (format stream "~C[49m" *escape*))))
 
 (defun emit-cell-style (stream cell last-fg last-bg last-style)
   "Emit style codes for cell, return new fg/bg/style state."
@@ -194,10 +196,16 @@
       (setf changed t)
       (when style
         (emit-style style stream))
-      (when (and fg (not (equalp fg last-fg)))
-        (fg-color fg stream))
-      (when (and bg (not (equalp bg last-bg)))
-        (bg-color bg stream)))
+      (when (not (equalp fg last-fg))
+        (if fg
+            (fg-color fg stream)
+            ;; fg is nil but last-fg was set — reset to default foreground
+            (format stream "~C[39m" *escape*)))
+      (when (not (equalp bg last-bg))
+        (if bg
+            (bg-color bg stream)
+            ;; bg is nil but last-bg was set — reset to default background
+            (format stream "~C[49m" *escape*))))
     (values fg bg style changed)))
 
 (defun screen-present (scr)
