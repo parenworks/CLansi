@@ -72,12 +72,9 @@
                    ((probe-file "/usr/bin/xsel") "xsel --clipboard --input")
                    (t nil))))
         (when cmd
-          (let ((proc (sb-ext:run-program "/bin/sh" (list "-c" cmd)
-                                          :input :stream :wait nil)))
-            (write-string text (sb-ext:process-input proc))
-            (close (sb-ext:process-input proc))
-            (sb-ext:process-wait proc)
-            t)))
+          (uiop:run-program (list "/bin/sh" "-c" cmd)
+                            :input (make-string-input-stream text))
+          t))
     (error () nil)))
 
 (defun paste-from-clipboard ()
@@ -89,10 +86,8 @@
                    ((probe-file "/usr/bin/xsel") "xsel --clipboard --output")
                    (t nil))))
         (when cmd
-          (let ((proc (sb-ext:run-program "/bin/sh" (list "-c" cmd)
-                                          :output :stream :wait nil)))
-            (prog1 (read-line (sb-ext:process-output proc) nil "")
-              (sb-ext:process-wait proc)))))
+          (uiop:run-program (list "/bin/sh" "-c" cmd)
+                            :output :string)))
     (error () nil)))
 
 ;;; ============================================================
@@ -105,7 +100,6 @@
   (handler-case
       (let ((cmd #+darwin "/usr/bin/open"
                  #-darwin "/usr/bin/xdg-open"))
-        (sb-ext:run-program cmd (list url)
-                            :wait nil :input nil :output nil)
+        (uiop:launch-program (list cmd url))
         t)
     (error () nil)))
