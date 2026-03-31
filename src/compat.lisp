@@ -34,9 +34,11 @@
 ;;; ============================================================
 
 #+sbcl
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (require :sb-posix))
+
+#+sbcl
 (progn
-  (require :sb-posix)
-  
   (defun %get-termios (fd)
     "Get termios structure for file descriptor."
     (sb-posix:tcgetattr fd))
