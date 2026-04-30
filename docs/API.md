@@ -120,6 +120,17 @@ Create a color from name. Supported names:
 +key-f1+ ... +key-f12+
 ```
 
+Function keys are recognised in two encodings:
+
+- **CSI tilde form** (xterm/VT220 PC-style): `ESC [ N ~`
+  with `N` in 11..15, 17..21, 23..24 mapping to F1..F5, F6..F10, F11..F12.
+  This is what most modern terminal emulators emit (kitty, alacritty,
+  gnome-terminal, foot, wezterm).
+- **SS3 form** (xterm "application cursor mode"): `ESC O P/Q/R/S` for
+  F1..F4. Also recognised for the cursor cluster: `ESC O A/B/C/D` for
+  Up/Down/Right/Left and `ESC O H/F` for Home/End. Either encoding
+  produces the same `key-event-code`.
+
 ---
 
 ## Panel (Base Widget)

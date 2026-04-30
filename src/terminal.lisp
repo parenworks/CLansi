@@ -55,6 +55,20 @@
 (defconstant +key-mouse-release+ :mouse-release)
 (defconstant +key-resize+ :resize)
 
+;;; Function keys (F1-F12)
+(defconstant +key-f1+ :f1)
+(defconstant +key-f2+ :f2)
+(defconstant +key-f3+ :f3)
+(defconstant +key-f4+ :f4)
+(defconstant +key-f5+ :f5)
+(defconstant +key-f6+ :f6)
+(defconstant +key-f7+ :f7)
+(defconstant +key-f8+ :f8)
+(defconstant +key-f9+ :f9)
+(defconstant +key-f10+ :f10)
+(defconstant +key-f11+ :f11)
+(defconstant +key-f12+ :f12)
+
 ;;; ============================================================
 ;;; Environment Configuration
 ;;; ============================================================
@@ -224,35 +238,49 @@
 ;;; Input Parsing
 ;;; ============================================================
 
-(defun wait-for-escape-sequence (stream timeout)
+(defparameter *read-byte-fn* #'%read-byte-from-fd
+  "Function of one argument (fd) that returns a byte or NIL when none is
+   ready. Defaults to the real syscall reader. Tests may bind this to
+   a closure over a synthetic byte source.")
+
+(declaim (inline %read-byte))
+(defun %read-byte (fd)
+  "Read one byte through the current *read-byte-fn*."
+  (funcall *read-byte-fn* fd))
+
+(defun wait-for-escape-sequence (fd timeout)
   "Wait for escape sequence bytes with timeout.
    Returns the next byte if available within timeout, or NIL."
-  (let ((fd (%stream-fd stream))
-        (start (get-internal-real-time))
+  (let ((start (get-internal-real-time))
         (timeout-ticks (* timeout internal-time-units-per-second)))
     (loop
-      (let ((byte (%read-byte-from-fd fd)))
+      (let ((byte (%read-byte fd)))
         (when byte (return byte)))
       (when (>= (- (get-internal-real-time) start) timeout-ticks)
         (return nil))
       (sleep 0.001))))
 
-(defmethod read-key-event ((reader input-reader))
-  "Read a key event from the TTY."
-  (let* ((stream (reader-stream reader))
-         (fd (%stream-fd stream))
-         (byte (%read-byte-from-fd fd)))
+(defun read-key-event-from-fd (fd)
+  "Read and parse a single key event from FD using the current *read-byte-fn*.
+
+   Returns a KEY-EVENT, or NIL if no input was available. This is the
+   transport-independent core of the input dispatcher: it does not touch
+   the reader or stream, so it is directly callable from tests that bind
+   *read-byte-fn* to a synthetic byte source."
+  (let ((byte (%read-byte fd)))
     (unless byte
-      (return-from read-key-event nil))
+      (return-from read-key-event-from-fd nil))
     (cond
       ;; Escape sequence or bare escape
       ((= byte 27)
-       (let ((next (wait-for-escape-sequence stream *escape-timeout*)))
+       (let ((next (wait-for-escape-sequence fd *escape-timeout*)))
          (cond
            ((null next)
             (make-key-event :code +key-escape+))
            ((= next 91)  ; CSI: ESC [
             (parse-csi-sequence fd))
+           ((= next 79)  ; SS3: ESC O - application cursor mode F1-F4 / arrows
+            (parse-ss3-sequence fd))
            (t
             ;; Alt + key
             (make-key-event :char (code-char next) :alt-p t)))))
@@ -271,6 +299,12 @@
       (t
        (make-key-event :char (decode-utf8-char byte fd))))))
 
+(defmethod read-key-event ((reader input-reader))
+  "Read a key event from the TTY."
+  (let* ((stream (reader-stream reader))
+         (fd (%stream-fd stream)))
+    (read-key-event-from-fd fd)))
+
 (defun decode-utf8-char (first-byte fd)
   "Decode a UTF-8 character starting with FIRST-BYTE."
   (cond
@@ -279,21 +313,21 @@
      (code-char first-byte))
     ;; 2-byte sequence
     ((and (>= first-byte #xC0) (< first-byte #xE0))
-     (let ((b2 (or (%read-byte-from-fd fd) 0)))
+     (let ((b2 (or (%read-byte fd) 0)))
        (code-char (logior (ash (logand first-byte #x1F) 6)
                           (logand b2 #x3F)))))
     ;; 3-byte sequence
     ((and (>= first-byte #xE0) (< first-byte #xF0))
-     (let ((b2 (or (%read-byte-from-fd fd) 0))
-           (b3 (or (%read-byte-from-fd fd) 0)))
+     (let ((b2 (or (%read-byte fd) 0))
+           (b3 (or (%read-byte fd) 0)))
        (code-char (logior (ash (logand first-byte #x0F) 12)
                           (ash (logand b2 #x3F) 6)
                           (logand b3 #x3F)))))
     ;; 4-byte sequence
     ((>= first-byte #xF0)
-     (let ((b2 (or (%read-byte-from-fd fd) 0))
-           (b3 (or (%read-byte-from-fd fd) 0))
-           (b4 (or (%read-byte-from-fd fd) 0)))
+     (let ((b2 (or (%read-byte fd) 0))
+           (b3 (or (%read-byte fd) 0))
+           (b4 (or (%read-byte fd) 0)))
        (code-char (logior (ash (logand first-byte #x07) 18)
                           (ash (logand b2 #x3F) 12)
                           (ash (logand b3 #x3F) 6)
@@ -302,8 +336,8 @@
 
 (defun parse-csi-sequence (fd)
   "Parse a CSI escape sequence after ESC ["
-  (let ((first-byte (or (%read-byte-from-fd fd)
-                        (progn (sleep 0.001) (%read-byte-from-fd fd)))))
+  (let ((first-byte (or (%read-byte fd)
+                        (progn (sleep 0.001) (%read-byte fd)))))
     (unless first-byte
       (return-from parse-csi-sequence (make-key-event :code :unknown)))
     (cond
@@ -319,7 +353,7 @@
   (let ((params nil)
         (final nil))
     (loop for attempts from 0 below 100 do
-      (let ((b (%read-byte-from-fd fd)))
+      (let ((b (%read-byte fd)))
         (cond
           (b (cond
                ((or (and (>= b 48) (<= b 57)) (= b 59))
@@ -369,7 +403,7 @@
         (setf final-byte first-byte)
         ;; Otherwise continue reading
         (loop
-          (let ((b (%read-byte-from-fd fd)))
+          (let ((b (%read-byte fd)))
             (unless b (return))
             (cond
               ((and (>= b 48) (<= b 57))
@@ -386,12 +420,53 @@
         (72 (make-key-event :code +key-home+))
         (70 (make-key-event :code +key-end+))
         (126
+         ;; Tilde-terminated CSI: editing keys and PC-style F-keys.
+         ;; The 16/22 gaps are historical (xterm/VT220 reserved them).
          (cond
-           ((string= param-str "3") (make-key-event :code +key-delete+))
-           ((string= param-str "5") (make-key-event :code +key-page-up+))
-           ((string= param-str "6") (make-key-event :code +key-page-down+))
+           ((string= param-str "3")  (make-key-event :code +key-delete+))
+           ((string= param-str "5")  (make-key-event :code +key-page-up+))
+           ((string= param-str "6")  (make-key-event :code +key-page-down+))
+           ((string= param-str "11") (make-key-event :code +key-f1+))
+           ((string= param-str "12") (make-key-event :code +key-f2+))
+           ((string= param-str "13") (make-key-event :code +key-f3+))
+           ((string= param-str "14") (make-key-event :code +key-f4+))
+           ((string= param-str "15") (make-key-event :code +key-f5+))
+           ((string= param-str "17") (make-key-event :code +key-f6+))
+           ((string= param-str "18") (make-key-event :code +key-f7+))
+           ((string= param-str "19") (make-key-event :code +key-f8+))
+           ((string= param-str "20") (make-key-event :code +key-f9+))
+           ((string= param-str "21") (make-key-event :code +key-f10+))
+           ((string= param-str "23") (make-key-event :code +key-f11+))
+           ((string= param-str "24") (make-key-event :code +key-f12+))
            (t (make-key-event :code :unknown))))
         (t (make-key-event :code :unknown))))))
+
+(defun parse-ss3-sequence (fd)
+  "Parse an SS3 escape sequence after ESC O.
+
+   xterm 'application cursor mode' encodes F1-F4 and the cursor cluster as
+   ESC O <letter>. Many terminals send this form for F1-F4 even when not in
+   application mode, so the reader has to recognise both encodings.
+
+   Mapping:
+     P/Q/R/S    -> F1/F2/F3/F4
+     A/B/C/D    -> Up/Down/Right/Left
+     H/F        -> Home/End
+     anything else, or no second byte within *escape-timeout* -> :unknown."
+  (let ((next (wait-for-escape-sequence fd *escape-timeout*)))
+    (cond
+      ((null next) (make-key-event :code :unknown))
+      ((= next 80) (make-key-event :code +key-f1+))
+      ((= next 81) (make-key-event :code +key-f2+))
+      ((= next 82) (make-key-event :code +key-f3+))
+      ((= next 83) (make-key-event :code +key-f4+))
+      ((= next 65) (make-key-event :code +key-up+))
+      ((= next 66) (make-key-event :code +key-down+))
+      ((= next 67) (make-key-event :code +key-right+))
+      ((= next 68) (make-key-event :code +key-left+))
+      ((= next 72) (make-key-event :code +key-home+))
+      ((= next 70) (make-key-event :code +key-end+))
+      (t (make-key-event :code :unknown)))))
 
 ;;; Global input reader instance
 (defparameter *input-reader* (make-instance 'input-reader)
