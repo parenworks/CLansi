@@ -160,6 +160,15 @@ Then load:
 - `(key-event-alt-p key)` - Alt modifier
 - `(key-event-mouse-x key)`, `(key-event-mouse-y key)` - Mouse coordinates
 
+Special-key constants include `+key-up+`, `+key-down+`, `+key-left+`,
+`+key-right+`, `+key-enter+`, `+key-escape+`, `+key-tab+`,
+`+key-backspace+`, `+key-delete+`, `+key-home+`, `+key-end+`,
+`+key-page-up+`, `+key-page-down+`, and `+key-f1+` through `+key-f12+`.
+Function keys are accepted in both the CSI tilde encoding
+(`ESC [ N ~`) and the SS3 application-mode encoding
+(`ESC O P/Q/R/S` for F1-F4); the cursor cluster is also accepted in
+either encoding.
+
 ### Widgets
 
 - `panel` - Base class with border, title, position

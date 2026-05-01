@@ -118,6 +118,18 @@
    #:+key-mouse-release+
    #:key-event-mouse-button
    #:+key-resize+
+   #:+key-f1+
+   #:+key-f2+
+   #:+key-f3+
+   #:+key-f4+
+   #:+key-f5+
+   #:+key-f6+
+   #:+key-f7+
+   #:+key-f8+
+   #:+key-f9+
+   #:+key-f10+
+   #:+key-f11+
+   #:+key-f12+
    
    ;; Terminal mode
    #:terminal-mode
@@ -143,10 +155,12 @@
    #:read-key
    #:read-key-with-timeout
    #:read-key-event
+   #:read-key-event-from-fd
    
    ;; Configuration
    #:*tty-path*
    #:*escape-timeout*
+   #:*read-byte-fn*
    
    ;; System utilities - URL detection
    #:find-urls

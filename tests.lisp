@@ -1214,6 +1214,174 @@
     (is string= "Click Me" (button-label btn))))
 
 ;;; ============================================================
+;;; Input Parser Tests
+;;; ============================================================
+
+(define-test input-parser-tests
+  :parent charmed-tests)
+
+(defun parse-bytes (&rest bytes)
+  "Run the key-event parser over a synthetic byte sequence and return
+   the resulting KEY-EVENT.  Drives the same code path as a real read by
+   binding *READ-BYTE-FN* to a closure that pops from a shared list."
+  (let ((queue (copy-list bytes)))
+    (let ((charmed:*read-byte-fn* (lambda (fd)
+                                    (declare (ignore fd))
+                                    (pop queue))))
+      ;; FD value is irrelevant - the byte source is the queue.
+      (charmed:read-key-event-from-fd 0))))
+
+;;; CSI tilde-terminated function keys (xterm/VT220 PC-style)
+
+(define-test csi-tilde-f1
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 91 49 49 126))) ; ESC [ 1 1 ~
+    (is eq +key-f1+ (key-event-code event))))
+
+(define-test csi-tilde-f2
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 91 49 50 126))) ; ESC [ 1 2 ~
+    (is eq +key-f2+ (key-event-code event))))
+
+(define-test csi-tilde-f3
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 91 49 51 126))) ; ESC [ 1 3 ~
+    (is eq +key-f3+ (key-event-code event))))
+
+(define-test csi-tilde-f4
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 91 49 52 126))) ; ESC [ 1 4 ~
+    (is eq +key-f4+ (key-event-code event))))
+
+(define-test csi-tilde-f5
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 91 49 53 126))) ; ESC [ 1 5 ~
+    (is eq +key-f5+ (key-event-code event))))
+
+(define-test csi-tilde-f6
+  :parent input-parser-tests
+  ;; The original report: kitty sends ESC [ 1 7 ~ for F6 and the parser
+  ;; previously dropped it on the floor as :unknown.
+  (let ((event (parse-bytes 27 91 49 55 126)))
+    (is eq +key-f6+ (key-event-code event))))
+
+(define-test csi-tilde-f7
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 91 49 56 126)))
+    (is eq +key-f7+ (key-event-code event))))
+
+(define-test csi-tilde-f8
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 91 49 57 126)))
+    (is eq +key-f8+ (key-event-code event))))
+
+(define-test csi-tilde-f9
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 91 50 48 126)))
+    (is eq +key-f9+ (key-event-code event))))
+
+(define-test csi-tilde-f10
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 91 50 49 126)))
+    (is eq +key-f10+ (key-event-code event))))
+
+(define-test csi-tilde-f11
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 91 50 51 126)))
+    (is eq +key-f11+ (key-event-code event))))
+
+(define-test csi-tilde-f12
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 91 50 52 126)))
+    (is eq +key-f12+ (key-event-code event))))
+
+;;; SS3 application-mode F1-F4 (ESC O P/Q/R/S)
+
+(define-test ss3-f1
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 79 80))) ; ESC O P
+    (is eq +key-f1+ (key-event-code event))))
+
+(define-test ss3-f2
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 79 81))) ; ESC O Q
+    (is eq +key-f2+ (key-event-code event))))
+
+(define-test ss3-f3
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 79 82))) ; ESC O R
+    (is eq +key-f3+ (key-event-code event))))
+
+(define-test ss3-f4
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 79 83))) ; ESC O S
+    (is eq +key-f4+ (key-event-code event))))
+
+;;; SS3 cursor cluster - must agree with the existing CSI-form constants
+
+(define-test ss3-cursor-up
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 79 65))) ; ESC O A
+    (is eq +key-up+ (key-event-code event))))
+
+(define-test ss3-cursor-down
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 79 66))) ; ESC O B
+    (is eq +key-down+ (key-event-code event))))
+
+(define-test ss3-cursor-right
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 79 67))) ; ESC O C
+    (is eq +key-right+ (key-event-code event))))
+
+(define-test ss3-cursor-left
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 79 68))) ; ESC O D
+    (is eq +key-left+ (key-event-code event))))
+
+(define-test ss3-cursor-home
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 79 72))) ; ESC O H
+    (is eq +key-home+ (key-event-code event))))
+
+(define-test ss3-cursor-end
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 79 70))) ; ESC O F
+    (is eq +key-end+ (key-event-code event))))
+
+;;; SS3 error paths - timeout (no second byte) and unrecognised final byte
+
+(define-test ss3-timeout-yields-unknown
+  :parent input-parser-tests
+  ;; *escape-timeout* applies during the read of the second byte. With
+  ;; no further bytes queued the wait drops out and returns :unknown.
+  (let ((charmed:*escape-timeout* 0.001))
+    (let ((event (parse-bytes 27 79))) ; ESC O <nothing>
+      (is eq :unknown (key-event-code event)))))
+
+(define-test ss3-unknown-final-byte
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 79 90))) ; ESC O Z - unmapped
+    (is eq :unknown (key-event-code event))))
+
+;;; Regression guard - existing CSI '~' editing keys still parse correctly
+
+(define-test csi-tilde-delete-still-works
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 91 51 126))) ; ESC [ 3 ~
+    (is eq +key-delete+ (key-event-code event))))
+
+(define-test csi-tilde-page-up-still-works
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 91 53 126))) ; ESC [ 5 ~
+    (is eq +key-page-up+ (key-event-code event))))
+
+(define-test csi-tilde-page-down-still-works
+  :parent input-parser-tests
+  (let ((event (parse-bytes 27 91 54 126))) ; ESC [ 6 ~
+    (is eq +key-page-down+ (key-event-code event))))
+
+;;; ============================================================
 ;;; Run Tests
 ;;; ============================================================
 
